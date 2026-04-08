@@ -6,6 +6,8 @@
 
 **API:** [https://sutra-backend-381066349460.us-central1.run.app/docs](https://sutra-backend-381066349460.us-central1.run.app/docs)
 
+**Video Demo:** https://youtu.be/qIlKeeLJnE4?si=YJL3NRUK1LKiRnLP
+
 ---
 
 ## What is Sutra?
