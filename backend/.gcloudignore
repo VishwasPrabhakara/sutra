@@ -1,0 +1,8 @@
+venv/
+__pycache__/
+*.pyc
+.env
+sutra.db
+.git/
+.gitignore
+demo_response.json
