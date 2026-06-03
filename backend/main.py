@@ -34,8 +34,12 @@ def warm_cache():
             print(f"⚠️  Warming failed for '{prompt[:30]}': {e}")
 
 
+# Only warm in production — wrapped in try/except so server starts even if Gemini is down
 if os.getenv("K_SERVICE"):
-    warm_cache()
+    try:
+        warm_cache()
+    except Exception as e:
+        print(f"⚠️ Cache warming failed, server starting without cache: {e}")
 
 
 # ============ FASTAPI APP ============

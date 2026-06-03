@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 760" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+    <marker id="arrowDashed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/>
+    </marker>
+    <style>
+      .box { stroke-width: 1.5; rx: 10; ry: 10; }
+      .title { font-size: 14px; font-weight: 600; text-anchor: middle; }
+      .sub { font-size: 11px; text-anchor: middle; }
+      .layer-label { font-size: 10px; font-weight: 600; fill: #94a3b8; letter-spacing: 1px; text-anchor: start; }
+      .flow { stroke: #64748b; stroke-width: 1.8; fill: none; marker-end: url(#arrow); }
+      .flow-dashed { stroke: #94a3b8; stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; marker-end: url(#arrowDashed); }
+    </style>
+  </defs>
+
+  <text x="20" y="65" class="layer-label">CLIENT</text>
+  <text x="20" y="155" class="layer-label">PRESENTATION</text>
+  <text x="20" y="245" class="layer-label">API</text>
+  <text x="20" y="345" class="layer-label">ORCHESTRATION</text>
+  <text x="20" y="465" class="layer-label">AGENTS</text>
+  <text x="20" y="605" class="layer-label">DATA</text>
+  <text x="20" y="700" class="layer-label">LLM</text>
+
+  <rect x="420" y="40" width="160" height="50" class="box" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="500" y="62" class="title" fill="#1e3a8a">User</text>
+  <text x="500" y="78" class="sub" fill="#475569">Voice · Text</text>
+
+  <rect x="350" y="130" width="300" height="55" class="box" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="500" y="152" class="title" fill="#14532d">React 19 + TypeScript</text>
+  <text x="500" y="170" class="sub" fill="#475569">Vite · Tailwind · Cloud Run</text>
+
+  <rect x="350" y="220" width="300" height="55" class="box" fill="#fffbeb" stroke="#f59e0b"/>
+  <text x="500" y="242" class="title" fill="#78350f">FastAPI Backend</text>
+  <text x="500" y="260" class="sub" fill="#475569">/orchestrate · Cloud Run · Docker</text>
+
+  <rect x="70"  y="310" width="180" height="70" class="box" fill="#f0f9ff" stroke="#0284c7"/>
+  <text x="160" y="335" class="title" fill="#0c4a6e">Response Cache</text>
+  <text x="160" y="353" class="sub" fill="#475569">Pre-warmed</text>
+  <text x="160" y="368" class="sub" fill="#475569">demo prompts</text>
+
+  <rect x="310" y="310" width="380" height="70" class="box" fill="#f5f3ff" stroke="#7c3aed"/>
+  <text x="500" y="335" class="title" fill="#4c1d95">Orchestrator — Gemini Flash</text>
+  <text x="500" y="353" class="sub" fill="#475569">Plans agent dispatch · Function calling</text>
+  <text x="500" y="368" class="sub" fill="#475569">Synthesizes final response</text>
+
+  <rect x="750" y="310" width="180" height="70" class="box" fill="#fff1f2" stroke="#e11d48"/>
+  <text x="840" y="335" class="title" fill="#881337">Learner</text>
+  <text x="840" y="353" class="sub" fill="#475569">SQL pattern</text>
+  <text x="840" y="368" class="sub" fill="#475569">detection</text>
+
+  <rect x="35"  y="430" width="145" height="65" class="box" fill="#fdf2f8" stroke="#db2777"/>
+  <text x="107.5" y="455" class="title" fill="#831843">Scheduler</text>
+  <text x="107.5" y="475" class="sub" fill="#475569">Calendar</text>
+
+  <rect x="195" y="430" width="145" height="65" class="box" fill="#fdf2f8" stroke="#db2777"/>
+  <text x="267.5" y="455" class="title" fill="#831843">TaskAgent</text>
+  <text x="267.5" y="475" class="sub" fill="#475569">To-do list</text>
+
+  <rect x="355" y="430" width="145" height="65" class="box" fill="#fdf2f8" stroke="#db2777"/>
+  <text x="427.5" y="455" class="title" fill="#831843">Scribe</text>
+  <text x="427.5" y="475" class="sub" fill="#475569">Messages</text>
+
+  <rect x="515" y="430" width="145" height="65" class="box" fill="#fdf2f8" stroke="#db2777"/>
+  <text x="587.5" y="455" class="title" fill="#831843">WeatherAgent</text>
+  <text x="587.5" y="475" class="sub" fill="#475569">Forecasts</text>
+
+  <rect x="675" y="430" width="145" height="65" class="box" fill="#fdf2f8" stroke="#db2777"/>
+  <text x="747.5" y="455" class="title" fill="#831843">RoutineAgent</text>
+  <text x="747.5" y="475" class="sub" fill="#475569">Focus mode</text>
+
+  <rect x="835" y="430" width="145" height="65" class="box" fill="#fdf2f8" stroke="#db2777"/>
+  <text x="907.5" y="455" class="title" fill="#831843">ScreenAgent</text>
+  <text x="907.5" y="475" class="sub" fill="#475569">Inbox scan</text>
+
+  <rect x="350" y="570" width="300" height="60" class="box" fill="#ecfeff" stroke="#0891b2"/>
+  <text x="500" y="595" class="title" fill="#164e63">SQLite</text>
+  <text x="500" y="613" class="sub" fill="#475569">Calendar · Tasks · Request history</text>
+
+  <rect x="350" y="670" width="300" height="55" class="box" fill="#f8fafc" stroke="#64748b"/>
+  <text x="500" y="692" class="title" fill="#0f172a">Gemini 2.5 Flash</text>
+  <text x="500" y="710" class="sub" fill="#475569">Google AI Studio API · Function calling</text>
+
+  <path class="flow" d="M 500 90 L 500 128"/>
+  <path class="flow" d="M 500 185 L 500 218"/>
+  <path class="flow" d="M 500 275 L 500 308"/>
+
+  <path class="flow" d="M 310 345 L 252 345"/>
+  <path class="flow" d="M 250 360 L 308 360"/>
+
+  <path class="flow" d="M 690 345 L 748 345"/>
+  <path class="flow" d="M 750 360 L 692 360"/>
+
+  <path class="flow" d="M 360 380 L 130 428"/>
+  <path class="flow" d="M 415 380 L 250 428"/>
+  <path class="flow" d="M 460 380 L 415 428"/>
+  <path class="flow" d="M 540 380 L 585 428"/>
+  <path class="flow" d="M 585 380 L 750 428"/>
+  <path class="flow" d="M 640 380 L 870 428"/>
+
+  <path class="flow" d="M 107.5 495 L 380 568"/>
+  <path class="flow" d="M 267.5 495 L 420 568"/>
+  <path class="flow" d="M 427.5 495 L 460 568"/>
+  <path class="flow" d="M 587.5 495 L 540 568"/>
+  <path class="flow" d="M 747.5 495 L 580 568"/>
+  <path class="flow" d="M 907.5 495 L 620 568"/>
+
+  <path class="flow-dashed" d="M 650 595 L 840 382"/>
+
+  <path class="flow-dashed" d="M 500 630 L 500 668"/>
+  <path class="flow-dashed" d="M 380 380 Q 200 600 380 668"/>
+  <path class="flow-dashed" d="M 620 380 Q 800 600 620 668"/>
+
+  <g transform="translate(770, 50)">
+    <rect x="0" y="0" width="210" height="62" fill="#ffffff" stroke="#cbd5e1" stroke-width="1" rx="6"/>
+    <text x="105" y="16" font-size="10" font-weight="600" fill="#475569" text-anchor="middle" letter-spacing="0.5">LEGEND</text>
+    <line x1="12" y1="32" x2="44" y2="32" stroke="#64748b" stroke-width="1.8" marker-end="url(#arrow)"/>
+    <text x="52" y="35" font-size="10" fill="#475569">Data flow</text>
+    <line x1="12" y1="50" x2="44" y2="50" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrowDashed)"/>
+    <text x="52" y="53" font-size="10" fill="#475569">External LLM call</text>
+  </g>
+</svg>
