@@ -7,6 +7,7 @@
 
 Built solo for the **Google Cloud Gen AI Academy APAC Hackathon 2026**.
 
+![Sutra UI](https://github.com/VishwasPrabhakara/sutra/blob/main/screenshot_of_UI.png)
 ---
 
 ## What is Sutra?
