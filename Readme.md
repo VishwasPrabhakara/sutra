@@ -8,6 +8,8 @@
 
 Built solo for the **Google Cloud Gen AI Academy APAC Hackathon 2026**.
 
+**Video Demo:** https://youtu.be/qIlKeeLJnE4?si=YJL3NRUK1LKiRnLP
+
 ![Sutra UI](https://github.com/VishwasPrabhakara/sutra/blob/main/screenshot_of_UI.png)
 ---
 
