@@ -3,12 +3,10 @@
 > Sanskrit for "thread." A multi-agent AI system that threads together specialized agents, tools, and persistent memory to handle real-world workflows — and visualizes every decision in real time.
 
 **Live Demo:** https://sutra-frontend-381066349460.us-central1.run.app <br />
-**Vedio Demo** https://www.youtube.com/watch?si=YJL3NRUK1LKiRnLP&v=qIlKeeLJnE4&feature=youtu.be <br/>
+**Vedio Demo** https://youtu.be/qIlKeeLJnE4?si=YJL3NRUK1LKiRnLP <br/>
 **API Docs:** https://sutra-backend-381066349460.us-central1.run.app/docs
 
-Built solo for the **Google Cloud Gen AI Academy APAC Hackathon 2026**.
-
-**Video Demo:** https://youtu.be/qIlKeeLJnE4?si=YJL3NRUK1LKiRnLP
+Built for the **Google Cloud Gen AI Academy APAC Hackathon 2026**.
 
 ![Sutra UI](https://github.com/VishwasPrabhakara/sutra/blob/main/screenshot_of_UI.png)
 ---
