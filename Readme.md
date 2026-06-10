@@ -105,7 +105,7 @@ cd frontend
 npm install
 npm run dev
 ```
-Open `http://localhost:5173`. The frontend reads `VITE_API_BASE`; defaults to the deployed Cloud Run URL — set it to `http://localhost:8000` for local dev.
+Open `http://localhost:5173`. The frontend reads `VITE_API_BASE`; defaults to the deployed Cloud Run URL — set it to `https://sutra-backend-381066349460.us-central1.run.app/` for local dev.
 
 ---
 

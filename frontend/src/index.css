@@ -27,3 +27,35 @@ body {
   background: #1e2f4a;
   border-radius: 4px;
 }
+
+.network-grid {
+  background-image:
+    linear-gradient(rgba(125, 211, 252, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125, 211, 252, 0.08) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+.network-line-active {
+  animation: network-dash 1.4s linear infinite;
+}
+
+.network-node-active {
+  animation: network-breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes network-dash {
+  to {
+    stroke-dashoffset: -7;
+  }
+}
+
+@keyframes network-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.08);
+  }
+}

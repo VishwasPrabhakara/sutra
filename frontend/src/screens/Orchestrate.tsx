@@ -1,41 +1,64 @@
-import { useState, useRef, useEffect } from 'react';
-import { Brain, Send, Sparkles, Cpu, Wrench, CheckCircle2, Lightbulb, Mic, Zap } from 'lucide-react';
-import { orchestrate, type TraceStep, type OrchestrateResponse } from '../api';
+import {
+  Brain,
+  CheckCircle2,
+  CircleAlert,
+  Cpu,
+  Lightbulb,
+  Mic,
+  Send,
+  Sparkles,
+  Square,
+  Wrench,
+  Zap,
+} from 'lucide-react';
+import {
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
-// Web Speech API type shim
+import {
+  streamOrchestration,
+  type OrchestrateResponse,
+  type TraceStep,
+} from '../api';
+import AgentNetworkGraph from '../components/AgentNetworkGraph';
+import ConnectCalendar from '../components/ConnectCalendar';
+import TokenMeter from '../components/TokenMeter';
+
 interface SpeechRecognitionEvent extends Event {
   results: {
-    [key: number]: { [key: number]: { transcript: string } };
+    [key: number]: {
+      [key: number]: {
+        transcript: string;
+      };
+    };
     length: number;
   };
 }
-interface SpeechRecognitionInstance extends EventTarget {
+
+interface SpeechRecognitionInstance
+  extends EventTarget {
   lang: string;
   continuous: boolean;
   interimResults: boolean;
   start: () => void;
   stop: () => void;
-  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  onresult:
+    | ((event: SpeechRecognitionEvent) => void)
+    | null;
   onerror: ((event: Event) => void) | null;
   onend: (() => void) | null;
 }
+
 declare global {
   interface Window {
-    webkitSpeechRecognition: new () => SpeechRecognitionInstance;
-    SpeechRecognition: new () => SpeechRecognitionInstance;
+    webkitSpeechRecognition:
+      new () => SpeechRecognitionInstance;
+    SpeechRecognition:
+      new () => SpeechRecognitionInstance;
   }
 }
-
-const AGENT_COLORS: Record<string, string> = {
-  Orchestrator: 'text-primary border-primary/40 bg-primary/5',
-  Scheduler: 'text-secondary border-secondary/40 bg-secondary/5',
-  Scribe: 'text-tertiary border-tertiary/40 bg-tertiary/5',
-  TaskAgent: 'text-tertiary border-tertiary/40 bg-tertiary/5',
-  WeatherAgent: 'text-blue-300 border-blue-300/40 bg-blue-300/5',
-  RoutineAgent: 'text-pink-300 border-pink-300/40 bg-pink-300/5',
-  ScreenAgent: 'text-orange-300 border-orange-300/40 bg-orange-300/5',
-  Learner: 'text-yellow-300 border-yellow-300/40 bg-yellow-300/5',
-};
 
 const TYPE_ICONS: Record<string, typeof Brain> = {
   thinking: Brain,
@@ -45,299 +68,556 @@ const TYPE_ICONS: Record<string, typeof Brain> = {
   complete: CheckCircle2,
   insight: Lightbulb,
   final: Sparkles,
+  error: CircleAlert,
+};
+
+const AGENT_COLORS: Record<string, string> = {
+  Orchestrator:
+    'border-primary/40 bg-primary/5 text-primary',
+  Scheduler:
+    'border-violet-300/40 bg-violet-300/5 text-violet-300',
+  TaskAgent:
+    'border-emerald-300/40 bg-emerald-300/5 text-emerald-300',
+  Scribe:
+    'border-pink-300/40 bg-pink-300/5 text-pink-300',
+  WeatherAgent:
+    'border-blue-300/40 bg-blue-300/5 text-blue-300',
+  ResearchAgent:
+    'border-yellow-300/40 bg-yellow-300/5 text-yellow-300',
+  RoutineAgent:
+    'border-rose-300/40 bg-rose-300/5 text-rose-300',
+  ScreenAgent:
+    'border-orange-300/40 bg-orange-300/5 text-orange-300',
+  Learner:
+    'border-yellow-200/40 bg-yellow-200/5 text-yellow-200',
 };
 
 const QUICK_PROMPTS = [
-  { label: '🇮🇳 Hinglish', text: "Friday meri sprint demo hai but mom is flying in from Chennai. Sort it out." },
-  { label: '📅 Calendar', text: "What's on my calendar this week and what tasks do I have pending?" },
-  { label: '📨 Multi-tool', text: "Draft a message to Marcus about the Q4 deck and add it to my tasks." },
-  { label: '🌤️ Weather', text: "I have an outdoor team offsite tomorrow, check the weather and reschedule if needed." },
-  { label: '🔕 Focus', text: "I need 2 hours of deep work, activate focus mode and block my calendar." },
-  { label: '📱 Screen Scan', text: "Check my WhatsApp for any schedule updates and update my calendar." },
+  {
+    label: 'Calendar + weather',
+    text:
+      'Check tomorrow weather in Bengaluru '
+      + 'and show my calendar.',
+  },
+  {
+    label: 'Research',
+    text:
+      'Research the latest developer news '
+      + 'and show the top Hacker News stories.',
+  },
+  {
+    label: 'Tasks + message',
+    text:
+      'Create a high priority task to send the Q4 deck '
+      + 'and draft a message to Marcus.',
+  },
+  {
+    label: 'Focus',
+    text:
+      'Activate focus mode for two hours '
+      + 'for deep project work.',
+  },
+  {
+    label: 'Screen scan',
+    text:
+      'Check my WhatsApp for schedule updates.',
+  },
+  {
+    label: 'Hinglish',
+    text:
+      'Kal Bengaluru ka weather check karo '
+      + 'aur mera calendar dikhao.',
+  },
 ];
 
 export default function Orchestrate() {
   const [input, setInput] = useState('');
-  const [trace, setTrace] = useState<TraceStep[]>([]);
-  const [insight, setInsight] = useState<string | null>(null);
-  const [response, setResponse] = useState<OrchestrateResponse | null>(null);
-  const [visibleCount, setVisibleCount] = useState(0);
+  const [trace, setTrace] = useState<TraceStep[]>(
+    [],
+  );
+  const [response, setResponse] =
+    useState<OrchestrateResponse | null>(null);
+  const [planAgents, setPlanAgents] = useState<
+    string[]
+  >([]);
+  const [tokenCount, setTokenCount] = useState(0);
+  const [cached, setCached] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [listening, setListening] = useState(false);
+  const [error, setError] = useState<string | null>(
+    null,
+  );
+
+  const abortControllerRef =
+    useRef<AbortController | null>(null);
+  const recognitionRef =
+    useRef<SpeechRecognitionInstance | null>(null);
   const traceEndRef = useRef<HTMLDivElement>(null);
 
-  const [listening, setListening] = useState(false);
-  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  useEffect(() => {
+    traceEndRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+    });
+  }, [trace]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(
+      window.location.search,
+    );
+
+    if (params.get('calendar')) {
+      params.delete('calendar');
+
+      const query = params.toString();
+      const cleanedUrl =
+        window.location.pathname
+        + (query ? `?${query}` : '');
+
+      window.history.replaceState(
+        {},
+        '',
+        cleanedUrl,
+      );
+    }
+  }, []);
 
   const handleVoice = () => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setError('Voice input requires Chrome or Edge browser.');
+    const Recognition =
+      window.SpeechRecognition
+      || window.webkitSpeechRecognition;
+
+    if (!Recognition) {
+      setError(
+        'Voice input requires Chrome or Edge.',
+      );
       return;
     }
+
     if (listening) {
       recognitionRef.current?.stop();
-      setListening(false);
       return;
     }
-    const recognition = new SpeechRecognition();
+
+    const recognition = new Recognition();
     recognition.lang = 'en-IN';
     recognition.continuous = false;
     recognition.interimResults = false;
+
     recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      setInput(transcript);
-      setListening(false);
+      setInput(event.results[0][0].transcript);
     };
+
     recognition.onerror = () => {
-      setError('Voice recognition failed. Try again or type your request.');
+      setError('Voice recognition failed.');
+    };
+
+    recognition.onend = () => {
       setListening(false);
     };
-    recognition.onend = () => setListening(false);
+
     recognitionRef.current = recognition;
     recognition.start();
     setListening(true);
   };
 
-  useEffect(() => {
-    if (visibleCount >= trace.length) return;
-    const timer = setTimeout(() => setVisibleCount((c) => c + 1), 700);
-    return () => clearTimeout(timer);
-  }, [visibleCount, trace.length]);
+  const stopStreaming = () => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    setLoading(false);
+  };
 
-  useEffect(() => {
-    traceEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [visibleCount]);
+  const handleSubmit = async (
+    overrideInput?: string,
+  ) => {
+    const requestText =
+      overrideInput ?? input;
 
-  const handleSubmit = async (overrideInput?: string) => {
-    const requestText = overrideInput ?? input;
-    if (!requestText.trim() || loading) return;
-    setLoading(true);
-    setError(null);
+    if (!requestText.trim() || loading) {
+      return;
+    }
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    setInput(requestText);
     setTrace([]);
-    setInsight(null);
     setResponse(null);
-    setVisibleCount(0);
+    setPlanAgents([]);
+    setTokenCount(0);
+    setCached(false);
+    setError(null);
+    setLoading(true);
+
     try {
-      const res = await orchestrate(requestText);
-      setTrace(res.trace);
-      setInsight(res.insight);
-      setResponse(res);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Unknown error');
+      await streamOrchestration(
+        requestText,
+        {
+          onTrace: (step, tokens) => {
+            setTrace((current) => [
+              ...current,
+              step,
+            ]);
+            setTokenCount(tokens);
+          },
+
+          onPlan: (plan, step, tokens) => {
+            setPlanAgents(plan.agents_needed);
+            setTrace((current) => [
+              ...current,
+              step,
+            ]);
+            setTokenCount(tokens);
+          },
+
+          onComplete: (result, tokens) => {
+            setResponse(result);
+            setTokenCount(tokens);
+            setCached(
+              Boolean(
+                (
+                  result as OrchestrateResponse
+                  & { cached?: boolean }
+                ).cached,
+              ),
+            );
+          },
+
+          onError: (streamError) => {
+            setError(streamError.message);
+          },
+        },
+        'vishwas',
+        controller.signal,
+      );
+    } catch (caughtError) {
+      if (
+        caughtError instanceof DOMException
+        && caughtError.name === 'AbortError'
+      ) {
+        return;
+      }
+
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : 'The orchestration failed.',
+      );
     } finally {
+      abortControllerRef.current = null;
       setLoading(false);
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
+  const handleKeyDown = (
+    event:
+      React.KeyboardEvent<HTMLTextAreaElement>,
+  ) => {
+    if (
+      event.key === 'Enter'
+      && !event.shiftKey
+    ) {
+      event.preventDefault();
       handleSubmit();
     }
   };
 
-  const visibleTrace = trace.slice(0, visibleCount);
-  const activeAgents = new Set(visibleTrace.map((s) => s.agent));
-  const showInsight = insight && visibleCount >= trace.length;
+  const toolOutputs =
+    response?.results.flatMap(
+      (agentResult) =>
+        agentResult.tool_results.map(
+          (toolResult) => ({
+            agent: agentResult.agent,
+            ...toolResult,
+          }),
+        ),
+    ) || [];
 
-  const ALL_AGENTS = ['Orchestrator', 'Scheduler', 'TaskAgent', 'Scribe', 'WeatherAgent', 'RoutineAgent', 'ScreenAgent', 'Learner'];
+  const insight =
+    response?.insight
+    || [...trace]
+      .reverse()
+      .find(
+        (step) => step.type === 'insight',
+      )?.message;
 
   return (
-    <div className="max-w-6xl mx-auto px-8 py-10 grid grid-cols-1 lg:grid-cols-12 gap-8">
-      {/* Left: Agent roster */}
-      <aside className="lg:col-span-4 space-y-3">
-        <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] font-bold text-on-surface-variant">
-          Agent Roster
-        </h2>
-        {ALL_AGENTS.map((agent) => {
-          const isActive = activeAgents.has(agent);
-          const color = AGENT_COLORS[agent] || 'text-on-surface-variant border-on-surface-variant/20 bg-surface-low';
-          return (
-            <div
-              key={agent}
-              className={`p-3 rounded-2xl border transition-all ${color} ${
-                isActive ? 'scale-[1.02] shadow-lg' : 'opacity-50'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-xs">{agent}</span>
-                {isActive && <span className="w-2 h-2 rounded-full bg-current animate-pulse"></span>}
-              </div>
-              <p className="text-[9px] uppercase tracking-wider mt-0.5 opacity-70">
-                {isActive ? 'Active' : 'Standby'}
-              </p>
-            </div>
-          );
-        })}
+    <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-5 py-8 pb-32 xl:grid-cols-12">
+      <aside className="space-y-5 xl:col-span-5">
+        <AgentNetworkGraph
+          trace={trace}
+          loading={loading}
+        />
 
-        <div className="mt-4 p-4 rounded-2xl bg-surface-low border border-surface-high">
-          <h3 className="font-mono text-[10px] uppercase tracking-[0.2em] font-bold text-on-surface-variant mb-3">
-            Session Stats
-          </h3>
-          <div className="space-y-2">
-            <div className="flex justify-between text-xs">
-              <span className="text-on-surface-variant">Trace steps</span>
-              <span className="font-mono text-primary">{visibleCount}/{trace.length}</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-on-surface-variant">Active agents</span>
-              <span className="font-mono text-primary">{activeAgents.size}</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-on-surface-variant">Tools called</span>
-              <span className="font-mono text-primary">
-                {visibleTrace.filter((s) => s.type === 'tool_call').length}
-              </span>
-            </div>
-          </div>
-        </div>
+        <TokenMeter
+          tokenCount={tokenCount}
+          loading={loading}
+          cached={cached}
+        />
+
+        <ConnectCalendar />
       </aside>
 
-      {/* Right: Input + Trace */}
-      <section className="lg:col-span-8 space-y-6">
-        <div className="bg-surface-low rounded-3xl p-6 border border-surface-high">
-          <label className="font-mono text-[10px] uppercase tracking-[0.2em] font-bold text-on-surface-variant block mb-3">
-            Your Request
-          </label>
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type or speak your request — Hinglish, English, anything goes."
-            rows={3}
-            className="w-full bg-surface-highest rounded-2xl px-4 py-3 text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
-          />
-          <div className="flex items-center justify-between mt-3">
-            <button
-              onClick={handleVoice}
-              className={`flex items-center gap-2 text-[11px] px-3 py-2 rounded-xl border transition-all ${
-                listening
-                  ? 'bg-red-500/20 border-red-500/50 text-red-300 animate-pulse'
-                  : 'text-on-surface-variant border-surface-high hover:border-primary/40 hover:text-primary'
-              }`}
-            >
-              <Mic className="w-3.5 h-3.5" />
-              {listening ? 'Listening…' : 'Voice'}
-            </button>
-            <button
-              onClick={() => handleSubmit()}
-              disabled={loading || !input.trim()}
-              className="flex items-center gap-2 bg-primary hover:bg-primary/90 disabled:opacity-30 disabled:cursor-not-allowed text-surface font-bold text-sm px-5 py-2.5 rounded-xl transition-all"
-            >
-              {loading ? 'Orchestrating…' : 'Dispatch'}
-              <Send className="w-4 h-4" />
-            </button>
+      <main className="space-y-5 xl:col-span-7">
+        <section className="rounded-3xl border border-surface-high bg-surface-low p-6">
+          <div className="mb-5">
+            <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-primary">
+              Live Multi-Agent Workspace
+            </p>
+
+            <h1 className="mt-2 text-2xl font-extrabold tracking-tight md:text-3xl">
+              What should Sutra handle?
+            </h1>
+
+            <p className="mt-2 text-sm leading-relaxed text-on-surface-variant">
+              Watch planning, agent dispatch, tool
+              execution, and results arrive in real time.
+            </p>
           </div>
 
-          <div className="mt-4 pt-4 border-t border-surface-high">
-            <p className="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant mb-2">
-              Try a demo prompt
+          <textarea
+            value={input}
+            onChange={(event) =>
+              setInput(event.target.value)
+            }
+            onKeyDown={handleKeyDown}
+            disabled={loading}
+            placeholder={
+              'Ask in English or Hinglish...'
+            }
+            rows={4}
+            className="w-full resize-none rounded-2xl border border-surface-high bg-surface-highest px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/50 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
+          />
+
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={handleVoice}
+              disabled={loading}
+              className={[
+                'flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition-colors',
+                listening
+                  ? 'border-red-400/50 bg-red-400/10 text-red-300'
+                  : 'border-surface-high text-on-surface-variant hover:border-primary/40 hover:text-primary',
+              ].join(' ')}
+            >
+              <Mic className="h-4 w-4" />
+              {listening
+                ? 'Listening...'
+                : 'Voice'}
+            </button>
+
+            {loading ? (
+              <button
+                type="button"
+                onClick={stopStreaming}
+                className="flex items-center gap-2 rounded-xl border border-red-400/40 bg-red-400/10 px-5 py-2.5 text-sm font-bold text-red-300"
+              >
+                <Square className="h-4 w-4 fill-current" />
+                Stop
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleSubmit()}
+                disabled={!input.trim()}
+                className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-surface transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                Dispatch
+                <Send className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          <div className="mt-5 border-t border-surface-high pt-4">
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+              Try a workflow
             </p>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-              {QUICK_PROMPTS.map((prompt, i) => (
+
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+              {QUICK_PROMPTS.map((prompt) => (
                 <button
-                  key={i}
-                  onClick={() => {
-                    setInput(prompt.text);
-                    handleSubmit(prompt.text);
-                  }}
+                  key={prompt.label}
+                  type="button"
                   disabled={loading}
-                  className="text-[11px] px-3 py-2 rounded-lg bg-surface-highest border border-surface-high text-on-surface-variant hover:text-primary hover:border-primary/40 transition-all disabled:opacity-30 text-left"
+                  onClick={() =>
+                    handleSubmit(prompt.text)
+                  }
+                  className="rounded-xl border border-surface-high bg-surface-highest px-3 py-2 text-left text-[11px] text-on-surface-variant transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-40"
                 >
                   {prompt.label}
                 </button>
               ))}
             </div>
           </div>
-        </div>
+        </section>
 
-        {showInsight && (
-          <div className="bg-gradient-to-r from-yellow-300/10 via-yellow-300/5 to-transparent rounded-3xl p-6 border border-yellow-300/30 animate-fade-in">
-            <div className="flex gap-4">
-              <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-yellow-300/20 flex items-center justify-center">
-                <Zap className="w-6 h-6 text-yellow-300" />
-              </div>
-              <div>
-                <p className="font-mono text-[10px] uppercase tracking-[0.2em] font-bold text-yellow-300 mb-1">
-                  Learner Insight · Pattern Detected
-                </p>
-                <p className="text-on-surface text-sm leading-relaxed">{insight}</p>
-              </div>
+        {planAgents.length > 0 && (
+          <section className="rounded-2xl border border-primary/25 bg-primary/5 px-4 py-3">
+            <div className="flex items-center gap-2">
+              <Cpu className="h-4 w-4 text-primary" />
+
+              <p className="text-xs text-on-surface">
+                <span className="font-bold text-primary">
+                  Plan:
+                </span>{' '}
+                {planAgents.join(' → ')}
+              </p>
             </div>
-          </div>
+          </section>
         )}
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 text-red-300 text-sm">
-            {error}
-          </div>
+          <section className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4">
+            <div className="flex gap-3">
+              <CircleAlert className="h-5 w-5 flex-shrink-0 text-red-300" />
+              <p className="text-sm text-red-200">
+                {error}
+              </p>
+            </div>
+          </section>
         )}
 
-        {visibleTrace.length > 0 && (
-          <div className="bg-surface-low rounded-3xl p-6 border border-surface-high">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="font-mono text-[10px] uppercase tracking-[0.2em] font-bold text-on-surface-variant">
-                Live Agent Trace
-              </h3>
-              <span className="text-[10px] font-mono text-primary">
-                {visibleCount}/{trace.length} steps
-              </span>
+        {insight && (
+          <section className="rounded-3xl border border-yellow-300/30 bg-gradient-to-r from-yellow-300/10 to-transparent p-5">
+            <div className="flex gap-3">
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-yellow-300/15">
+                <Zap className="h-5 w-5 text-yellow-300" />
+              </div>
+
+              <div>
+                <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-yellow-300">
+                  Learner Insight
+                </p>
+
+                <p className="mt-1 text-sm leading-relaxed text-on-surface">
+                  {insight}
+                </p>
+              </div>
             </div>
+          </section>
+        )}
+
+        <section className="rounded-3xl border border-surface-high bg-surface-low p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">
+                Live Agent Trace
+              </p>
+
+              <p className="mt-1 text-xs text-on-surface-variant">
+                {trace.length} events received
+              </p>
+            </div>
+
+            {loading && (
+              <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider text-primary">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
+                Streaming
+              </div>
+            )}
+          </div>
+
+          {trace.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-surface-high px-4 py-10 text-center">
+              <Brain className="mx-auto h-7 w-7 text-on-surface-variant/50" />
+
+              <p className="mt-3 text-sm text-on-surface-variant">
+                Dispatch a request to watch the
+                network work.
+              </p>
+            </div>
+          ) : (
             <div className="space-y-3">
-              {visibleTrace.map((step, i) => {
-                const Icon = TYPE_ICONS[step.type] || Brain;
-                const color = AGENT_COLORS[step.agent] || 'text-on-surface-variant border-on-surface-variant/20 bg-surface-low';
+              {trace.map((step, index) => {
+                const Icon =
+                  TYPE_ICONS[step.type] || Brain;
+
+                const color =
+                  AGENT_COLORS[step.agent]
+                  || 'border-surface-high bg-surface-highest text-on-surface-variant';
+
                 return (
-                  <div key={i} className={`flex gap-3 p-3 rounded-2xl border animate-fade-in ${color}`}>
-                    <div className="flex-shrink-0 mt-0.5">
-                      <Icon className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-bold text-xs">{step.agent}</span>
-                        <span className="text-[9px] font-mono uppercase tracking-wider opacity-60">
-                          {step.type}
-                        </span>
-                      </div>
-                      <p className="text-sm text-on-surface leading-snug">{step.message}</p>
-                      {step.tool && (
-                        <div className="mt-2 inline-block px-2 py-0.5 rounded bg-surface-highest text-[10px] font-mono text-on-surface-variant">
-                          tool: {step.tool}
+                  <article
+                    key={`${step.timestamp}-${index}`}
+                    className={`animate-fade-in rounded-2xl border p-4 ${color}`}
+                  >
+                    <div className="flex gap-3">
+                      <Icon className="mt-0.5 h-4 w-4 flex-shrink-0" />
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-bold">
+                            {step.agent}
+                          </span>
+
+                          <span className="font-mono text-[9px] uppercase tracking-wider opacity-60">
+                            {step.type}
+                          </span>
                         </div>
-                      )}
+
+                        <p className="mt-1 text-sm leading-relaxed text-on-surface">
+                          {step.message}
+                        </p>
+
+                        {step.tool && (
+                          <div className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-black/15 px-2 py-1 font-mono text-[10px]">
+                            <Wrench className="h-3 w-3" />
+                            {step.tool}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  </article>
                 );
               })}
+
               <div ref={traceEndRef} />
             </div>
-          </div>
-        )}
+          )}
+        </section>
 
-        {response && visibleCount >= trace.length && response.results.some((r) => r.tool_results.length > 0) && (
-          <div className="bg-surface-low rounded-3xl p-6 border border-surface-high animate-fade-in">
-            <h3 className="font-mono text-[10px] uppercase tracking-[0.2em] font-bold text-on-surface-variant mb-4">
+        {toolOutputs.length > 0 && (
+          <section className="rounded-3xl border border-surface-high bg-surface-low p-5">
+            <p className="mb-4 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">
               Tool Outputs
-            </h3>
+            </p>
+
             <div className="space-y-3">
-              {response.results.map((r, i) =>
-                r.tool_results.map((tr, j) => (
-                  <div key={`${i}-${j}`} className="bg-surface-highest rounded-2xl p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Wrench className="w-3.5 h-3.5 text-primary" />
-                      <span className="font-mono text-[11px] text-primary">{tr.tool}</span>
+              {toolOutputs.map(
+                (output, index) => (
+                  <article
+                    key={`${output.tool}-${index}`}
+                    className="rounded-2xl border border-surface-high bg-surface-highest p-4"
+                  >
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <Wrench className="h-3.5 w-3.5 text-primary" />
+
+                        <span className="font-mono text-[11px] text-primary">
+                          {output.tool}
+                        </span>
+                      </div>
+
+                      <span className="text-[9px] uppercase tracking-wider text-on-surface-variant">
+                        {output.agent}
+                      </span>
                     </div>
-                    <pre className="text-[11px] text-on-surface-variant overflow-x-auto whitespace-pre-wrap">
-                      {JSON.stringify(tr.result, null, 2)}
+
+                    <pre className="overflow-x-auto whitespace-pre-wrap text-[11px] leading-relaxed text-on-surface-variant">
+                      {JSON.stringify(
+                        output.result,
+                        null,
+                        2,
+                      )}
                     </pre>
-                  </div>
-                ))
+                  </article>
+                ),
               )}
             </div>
-          </div>
+          </section>
         )}
-      </section>
+      </main>
     </div>
   );
 }

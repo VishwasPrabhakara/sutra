@@ -1,26 +1,26 @@
-"""
-Sutra database — SQLite for storing user requests and agent memory.
-The Learner agent reads from request_history to detect patterns.
-"""
+"""SQLite persistence for Sutra requests, tasks, calendar, and OAuth tokens."""
+
+import json
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 DB_PATH = Path(__file__).parent / "sutra.db"
 
 
-def get_conn():
+def get_conn() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
 
-def init_db():
-    """Create tables if they don't exist. Safe to call multiple times."""
+def init_db() -> None:
+    """Create all database tables and seed local demo data."""
     conn = get_conn()
     cur = conn.cursor()
 
-    cur.execute("""
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS request_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id TEXT NOT NULL,
@@ -28,9 +28,11 @@ def init_db():
             request_type TEXT,
             created_at TEXT NOT NULL
         )
-    """)
+        """
+    )
 
-    cur.execute("""
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS tasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id TEXT NOT NULL,
@@ -39,9 +41,11 @@ def init_db():
             priority TEXT DEFAULT 'medium',
             created_at TEXT NOT NULL
         )
-    """)
+        """
+    )
 
-    cur.execute("""
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS calendar_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id TEXT NOT NULL,
@@ -50,9 +54,21 @@ def init_db():
             end_time TEXT NOT NULL,
             created_at TEXT NOT NULL
         )
-    """)
+        """
+    )
 
-    # Seed some demo data so the agents have something to work with
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS oauth_tokens (
+            user_id TEXT NOT NULL,
+            provider TEXT NOT NULL,
+            token_json TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (user_id, provider)
+        )
+        """
+    )
+
     cur.execute("SELECT COUNT(*) FROM calendar_events")
     if cur.fetchone()[0] == 0:
         seed_demo_data(cur)
@@ -61,71 +77,193 @@ def init_db():
     conn.close()
 
 
-def seed_demo_data(cur):
-    """Pre-fill calendar and tasks so demo looks real."""
-    now = datetime.now().isoformat()
+def seed_demo_data(cur: sqlite3.Cursor) -> None:
+    """Add local fallback data for users without Google Calendar connected."""
+    now = datetime.now()
+    tomorrow = now + timedelta(days=1)
+    day_after = now + timedelta(days=2)
+
+    events = [
+        (
+            "vishwas",
+            "Sprint Demo",
+            tomorrow.replace(hour=14, minute=0, second=0, microsecond=0).isoformat(),
+            tomorrow.replace(hour=15, minute=0, second=0, microsecond=0).isoformat(),
+            now.isoformat(),
+        ),
+        (
+            "vishwas",
+            "1:1 with Marcus",
+            tomorrow.replace(hour=11, minute=0, second=0, microsecond=0).isoformat(),
+            tomorrow.replace(hour=11, minute=30, second=0, microsecond=0).isoformat(),
+            now.isoformat(),
+        ),
+        (
+            "vishwas",
+            "Design Review",
+            day_after.replace(hour=10, minute=0, second=0, microsecond=0).isoformat(),
+            day_after.replace(hour=11, minute=0, second=0, microsecond=0).isoformat(),
+            now.isoformat(),
+        ),
+    ]
+
     cur.executemany(
-        "INSERT INTO calendar_events (user_id, title, start_time, end_time, created_at) VALUES (?, ?, ?, ?, ?)",
-        [
-            ("vishwas", "Sprint Demo", "2026-04-10 14:00", "2026-04-10 15:00", now),
-            ("vishwas", "1:1 with Marcus", "2026-04-10 11:00", "2026-04-10 11:30", now),
-            ("vishwas", "Design Review", "2026-04-11 10:00", "2026-04-11 11:00", now),
-        ],
+        """
+        INSERT INTO calendar_events
+            (user_id, title, start_time, end_time, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        events,
     )
+
+    tasks = [
+        ("vishwas", "Send Q4 deck to Marcus", "pending", "high", now.isoformat()),
+        ("vishwas", "Review PR #234", "pending", "medium", now.isoformat()),
+        ("vishwas", "Book flight to Chennai", "pending", "low", now.isoformat()),
+    ]
+
     cur.executemany(
-        "INSERT INTO tasks (user_id, title, status, priority, created_at) VALUES (?, ?, ?, ?, ?)",
-        [
-            ("vishwas", "Send Q4 deck to Marcus", "pending", "high", now),
-            ("vishwas", "Review PR #234", "pending", "medium", now),
-            ("vishwas", "Book flight to Chennai", "pending", "low", now),
-        ],
+        """
+        INSERT INTO tasks
+            (user_id, title, status, priority, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        tasks,
     )
 
 
-def log_request(user_id: str, request_text: str, request_type: str):
+def log_request(
+    user_id: str,
+    request_text: str,
+    request_type: str,
+) -> None:
     conn = get_conn()
     conn.execute(
-        "INSERT INTO request_history (user_id, request_text, request_type, created_at) VALUES (?, ?, ?, ?)",
-        (user_id, request_text, request_type, datetime.now().isoformat()),
+        """
+        INSERT INTO request_history
+            (user_id, request_text, request_type, created_at)
+        VALUES (?, ?, ?, ?)
+        """,
+        (
+            user_id,
+            request_text,
+            request_type,
+            datetime.now().isoformat(),
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+
+def save_oauth_token(
+    user_id: str,
+    provider: str,
+    token: dict,
+) -> None:
+    """Insert or replace a user's OAuth credentials."""
+    conn = get_conn()
+    conn.execute(
+        """
+        INSERT INTO oauth_tokens
+            (user_id, provider, token_json, updated_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(user_id, provider) DO UPDATE SET
+            token_json = excluded.token_json,
+            updated_at = excluded.updated_at
+        """,
+        (
+            user_id,
+            provider,
+            json.dumps(token),
+            datetime.now().isoformat(),
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_oauth_token(
+    user_id: str,
+    provider: str,
+) -> dict | None:
+    conn = get_conn()
+    row = conn.execute(
+        """
+        SELECT token_json
+        FROM oauth_tokens
+        WHERE user_id = ? AND provider = ?
+        """,
+        (user_id, provider),
+    ).fetchone()
+    conn.close()
+
+    if row is None:
+        return None
+
+    return json.loads(row["token_json"])
+
+
+def delete_oauth_token(
+    user_id: str,
+    provider: str,
+) -> None:
+    conn = get_conn()
+    conn.execute(
+        """
+        DELETE FROM oauth_tokens
+        WHERE user_id = ? AND provider = ?
+        """,
+        (user_id, provider),
     )
     conn.commit()
     conn.close()
 
 
 def get_pattern_insight(user_id: str) -> str | None:
-    """
-    The Learner's brain. Looks at recent request history and
-    returns a proactive suggestion if it sees a pattern.
-    This is the 'self-improving' wow factor — it's deterministic SQL.
-    """
+    """Return a deterministic insight based on request history."""
     conn = get_conn()
-    cur = conn.cursor()
 
-    # Pattern 1: User reschedules things often → suggest defaults
-    cur.execute(
-        "SELECT COUNT(*) FROM request_history WHERE user_id = ? AND request_type = 'reschedule'",
+    reschedule_count = conn.execute(
+        """
+        SELECT COUNT(*)
+        FROM request_history
+        WHERE user_id = ? AND request_type = 'scheduler'
+        """,
         (user_id,),
-    )
-    reschedule_count = cur.fetchone()[0]
+    ).fetchone()[0]
 
-    # Pattern 2: Total request count → become more proactive over time
-    cur.execute(
-        "SELECT COUNT(*) FROM request_history WHERE user_id = ?",
+    total = conn.execute(
+        """
+        SELECT COUNT(*)
+        FROM request_history
+        WHERE user_id = ?
+        """,
         (user_id,),
-    )
-    total = cur.fetchone()[0]
+    ).fetchone()[0]
 
     conn.close()
 
     if reschedule_count >= 2:
-        return "I've noticed you reschedule sprint demos often. Want me to default them to mornings going forward?"
+        return (
+            "You frequently use Sutra for scheduling. "
+            "Consider protecting recurring deep-work blocks."
+        )
+
     if total >= 3:
-        return "Based on your patterns this week, Friday afternoons are your highest-conflict slots. Consider blocking them for deep work."
+        return (
+            "Sutra has enough history to identify recurring workflow patterns "
+            "and make proactive suggestions."
+        )
+
     if total >= 1:
-        return "I'm learning your patterns. The more you use Sutra, the more proactive I'll become."
+        return (
+            "Sutra is learning your patterns. Its suggestions will improve "
+            "as you complete more workflows."
+        )
+
     return None
 
 
 if __name__ == "__main__":
     init_db()
-    print(f"✅ Database initialized at {DB_PATH}")
+    print(f"Database initialized at {DB_PATH}")
