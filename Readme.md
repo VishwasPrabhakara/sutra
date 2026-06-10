@@ -23,6 +23,18 @@ Try prompts like:
 - *"Check my WhatsApp for any schedule updates and update my calendar."*
 
 A primary **Orchestrator** decomposes the request, decides which sub-agents to dispatch, and stitches their outputs into one coherent response.
+---
+## Features
+
+- True Server-Sent Events streaming
+- Live agent-network visualization
+- Google Calendar OAuth integration
+- Real Open-Meteo weather forecasts
+- DuckDuckGo research
+- Hacker News integration
+- Persistent local task and workflow history
+- Agent activity and tool-call trace
+- Estimated token usage meter
 
 ---
 
@@ -43,6 +55,7 @@ A primary **Orchestrator** decomposes the request, decides which sub-agents to d
 | **WeatherAgent** | Forecasts + practical advice for outdoor plans | `get_weather` |
 | **RoutineAgent** | Focus mode / DND / deep work sessions | `set_focus_mode` |
 | **ScreenAgent** | Scans WhatsApp / Slack / email for schedule changes and action items | `scan_screen` |
+| ResearchAgent | Web and technology research | `search_web`, `get_hacker_news` |
 | **Learner** | SQL pattern detection across past requests — surfaces proactive insights | — |
 
 Every sub-agent uses **Gemini function calling**. The Learner reads `request_history` from SQLite and pushes pattern-based hints back into the response.
@@ -82,6 +95,11 @@ Every sub-agent uses **Gemini function calling**. The Learner reads `request_his
 | `GET` | `/api/tasks` | Pending tasks |
 | `GET` | `/api/history` | Recent request history (Logs screen) |
 | `GET` | `/api/insights` | Learner patterns (Knowledge screen) |
+| POST | `/orchestrate/stream` | Stream agent execution using SSE |
+| GET | `/auth/login` | Start Google Calendar OAuth |
+| GET | `/auth/callback` | Complete Google OAuth |
+| GET | `/auth/status` | Check Calendar connection |
+| POST | `/auth/disconnect` | Disconnect Calendar |
 
 ---
 
