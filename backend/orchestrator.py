@@ -342,63 +342,6 @@ AGENT_CONFIG = {
             },
         ],
     },
-    "routine": {
-        "name": "RoutineAgent",
-        "prompt": (
-            "You manage focus mode and deep-work sessions."
-        ),
-        "tools": [
-            {
-                "name": "set_focus_mode",
-                "description": (
-                    "Activate or deactivate focus mode."
-                ),
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "active": {
-                            "type": "boolean",
-                        },
-                        "duration_minutes": {
-                            "type": "integer",
-                        },
-                        "reason": {
-                            "type": "string",
-                        },
-                    },
-                    "required": ["active"],
-                },
-            }
-        ],
-    },
-    "screen": {
-        "name": "ScreenAgent",
-        "prompt": (
-            "You scan a demonstration communication source. "
-            "Clearly state that the scan uses demo data."
-        ),
-        "tools": [
-            {
-                "name": "scan_screen",
-                "description": (
-                    "Scan a demo communication source."
-                ),
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "source": {
-                            "type": "string",
-                            "enum": [
-                                "whatsapp",
-                                "slack",
-                                "email",
-                            ],
-                        }
-                    },
-                },
-            }
-        ],
-    },
 }
 
 
@@ -514,17 +457,6 @@ def fallback_plan(user_request: str) -> dict:
             "latest",
             "web",
         ],
-        "routine": [
-            "focus",
-            "deep work",
-            "dnd",
-            "do not disturb",
-        ],
-        "screen": [
-            "whatsapp",
-            "slack",
-            "scan screen",
-        ],
     }
 
     for agent, keywords in keyword_groups.items():
@@ -566,8 +498,6 @@ Available agents:
 - scribe: message drafting and email preparation
 - weather: real forecasts
 - research: web search and Hacker News
-- routine: focus mode
-- screen: demo WhatsApp, Slack, or email scan
 
 Use previous conversation context to resolve follow-up
 requests such as "move it to 3 PM" or "send that to him".
@@ -656,10 +586,6 @@ def execute_tool(
         "get_hacker_news": (
             tools.get_hacker_news
         ),
-        "set_focus_mode": (
-            tools.set_focus_mode
-        ),
-        "scan_screen": tools.scan_screen,
     }
 
     if tool_name in user_tools:

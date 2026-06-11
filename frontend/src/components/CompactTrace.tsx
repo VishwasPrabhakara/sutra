@@ -10,7 +10,7 @@ import {
   Sparkles,
   Wrench,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import type { TraceStep } from '../api';
 
@@ -41,10 +41,6 @@ const AGENT_COLORS: Record<string, string> = {
     'border-blue-300/30 bg-blue-300/5 text-blue-300',
   ResearchAgent:
     'border-yellow-300/30 bg-yellow-300/5 text-yellow-300',
-  RoutineAgent:
-    'border-rose-300/30 bg-rose-300/5 text-rose-300',
-  ScreenAgent:
-    'border-orange-300/30 bg-orange-300/5 text-orange-300',
   Learner:
     'border-yellow-200/30 bg-yellow-200/5 text-yellow-200',
 };
@@ -164,37 +160,22 @@ export default function CompactTrace({
     [trace, loading],
   );
 
-  const activeAgent = groups.find(
-    (group) => group.active,
-  )?.agent;
+  const [
+    expansionOverrides,
+    setExpansionOverrides,
+  ] = useState<Record<string, boolean>>({});
 
-  const [expandedAgents, setExpandedAgents] =
-    useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    if (!activeAgent) {
-      return;
-    }
-
-    setExpandedAgents((current) => {
-      const next = new Set(current);
-      next.add(activeAgent);
-      return next;
-    });
-  }, [activeAgent]);
-
-  const toggleAgent = (agent: string) => {
-    setExpandedAgents((current) => {
-      const next = new Set(current);
-
-      if (next.has(agent)) {
-        next.delete(agent);
-      } else {
-        next.add(agent);
-      }
-
-      return next;
-    });
+  const toggleAgent = (
+    agent: string,
+    defaultExpanded: boolean,
+  ) => {
+    setExpansionOverrides((current) => ({
+      ...current,
+      [agent]: !(
+        current[agent]
+        ?? defaultExpanded
+      ),
+    }));
   };
 
   return (
@@ -229,9 +210,9 @@ export default function CompactTrace({
       ) : (
         <div className="space-y-2">
           {groups.map((group) => {
-            const expanded = expandedAgents.has(
-              group.agent,
-            );
+            const expanded =
+              expansionOverrides[group.agent]
+              ?? group.active;
 
             const color =
               AGENT_COLORS[group.agent]
@@ -245,7 +226,10 @@ export default function CompactTrace({
                 <button
                   type="button"
                   onClick={() =>
-                    toggleAgent(group.agent)
+                    toggleAgent(
+                      group.agent,
+                      group.active,
+                    )
                   }
                   className="flex w-full items-center gap-3 px-4 py-3 text-left"
                 >

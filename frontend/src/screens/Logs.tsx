@@ -5,9 +5,7 @@ import {
   CalendarDays,
   CheckSquare,
   Clock,
-  Focus,
   Mail,
-  Monitor,
   RefreshCw,
   Search,
   ScrollText,
@@ -37,27 +35,9 @@ const AGENT_STYLES:
       'border-blue-300/30 bg-blue-300/5 text-blue-300',
     research:
       'border-yellow-300/30 bg-yellow-300/5 text-yellow-300',
-    routine:
-      'border-rose-300/30 bg-rose-300/5 text-rose-300',
-    screen:
-      'border-orange-300/30 bg-orange-300/5 text-orange-300',
     unknown:
       'border-surface-high bg-surface-highest text-on-surface-variant',
   };
-
-const AGENT_ICONS: Record<
-  string,
-  typeof Brain
-> = {
-  scheduler: CalendarDays,
-  tasks: CheckSquare,
-  scribe: Mail,
-  weather: Activity,
-  research: Search,
-  routine: Focus,
-  screen: Monitor,
-  unknown: Brain,
-};
 
 const AGENT_LABELS:
   Record<string, string> = {
@@ -66,8 +46,6 @@ const AGENT_LABELS:
     scribe: 'Scribe',
     weather: 'WeatherAgent',
     research: 'ResearchAgent',
-    routine: 'RoutineAgent',
-    screen: 'ScreenAgent',
     unknown: 'Unknown',
   };
 
@@ -260,9 +238,6 @@ export default function Logs() {
           <div className="flex flex-wrap gap-2">
             {sortedAgents.map(
               ([agent, count]) => {
-                const Icon =
-                  getAgentIcon(agent);
-
                 const style =
                   getAgentStyle(agent);
 
@@ -271,7 +246,10 @@ export default function Logs() {
                     key={agent}
                     className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${style}`}
                   >
-                    <Icon className="h-3.5 w-3.5" />
+                    <AgentIcon
+                      agent={agent}
+                      className="h-3.5 w-3.5"
+                    />
 
                     <span className="text-[10px] font-bold">
                       {getAgentLabel(
@@ -339,9 +317,6 @@ function HistoryCard({
       entry.request_type,
     );
 
-  const Icon =
-    getAgentIcon(requestType);
-
   const style =
     getAgentStyle(requestType);
 
@@ -352,7 +327,10 @@ function HistoryCard({
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 flex-1 gap-3">
           <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-black/10">
-            <Icon className="h-4 w-4" />
+            <AgentIcon
+              agent={requestType}
+              className="h-4 w-4"
+            />
           </div>
 
           <div className="min-w-0 flex-1">
@@ -461,13 +439,27 @@ function getAgentStyle(
   );
 }
 
-function getAgentIcon(
-  agent: string,
-): typeof Brain {
-  return (
-    AGENT_ICONS[agent]
-    || AGENT_ICONS.unknown
-  );
+function AgentIcon({
+  agent,
+  className,
+}: {
+  agent: string;
+  className: string;
+}) {
+  switch (agent) {
+    case 'scheduler':
+      return <CalendarDays className={className} />;
+    case 'tasks':
+      return <CheckSquare className={className} />;
+    case 'scribe':
+      return <Mail className={className} />;
+    case 'weather':
+      return <Activity className={className} />;
+    case 'research':
+      return <Search className={className} />;
+    default:
+      return <Brain className={className} />;
+  }
 }
 
 function getAgentLabel(

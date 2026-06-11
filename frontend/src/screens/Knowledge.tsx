@@ -6,10 +6,8 @@ import {
   CheckSquare,
   CloudSun,
   Database,
-  Focus,
   Lightbulb,
   Mail,
-  Monitor,
   RefreshCw,
   Search,
   Sparkles,
@@ -61,16 +59,6 @@ const AGENT_META:
       label: 'ResearchAgent',
       color: 'text-yellow-300',
       icon: Search,
-    },
-    routine: {
-      label: 'RoutineAgent',
-      color: 'text-rose-300',
-      icon: Focus,
-    },
-    screen: {
-      label: 'ScreenAgent',
-      color: 'text-orange-300',
-      icon: Monitor,
     },
     unknown: {
       label: 'Other',

@@ -1,124 +1,251 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 760" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 890" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
       <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
     </marker>
-    <marker id="arrowDashed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-      <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/>
+    <marker id="arrowStream" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#22c55e"/>
     </marker>
+    <marker id="arrowAuth" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#7c3aed"/>
+    </marker>
+    <marker id="arrowConfirm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#f97316"/>
+    </marker>
+    <linearGradient id="orchGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#22d3ee" stop-opacity="0.05"/>
+    </linearGradient>
     <style>
-      .box { stroke-width: 1.5; rx: 10; ry: 10; }
-      .title { font-size: 14px; font-weight: 600; text-anchor: middle; }
+      .box { stroke-width: 1.5; rx: 12; ry: 12; }
+      .title { font-size: 14px; font-weight: 700; text-anchor: middle; }
       .sub { font-size: 11px; text-anchor: middle; }
-      .layer-label { font-size: 10px; font-weight: 600; fill: #94a3b8; letter-spacing: 1px; text-anchor: start; }
-      .flow { stroke: #64748b; stroke-width: 1.8; fill: none; marker-end: url(#arrow); }
-      .flow-dashed { stroke: #94a3b8; stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; marker-end: url(#arrowDashed); }
+      .micro { font-size: 9px; text-anchor: middle; font-family: 'SF Mono', Consolas, monospace; letter-spacing: 0.5px; }
+      .layer-label { font-size: 10px; font-weight: 700; fill: #94a3b8; letter-spacing: 1.4px; text-anchor: start; font-family: 'SF Mono', Consolas, monospace; }
+      .flow { stroke: #64748b; stroke-width: 1.6; fill: none; marker-end: url(#arrow); }
+      .stream-flow { stroke: #22c55e; stroke-width: 2; fill: none; marker-end: url(#arrowStream); stroke-dasharray: 6 3; }
+      .auth-flow { stroke: #7c3aed; stroke-width: 1.8; fill: none; marker-end: url(#arrowAuth); }
+      .confirm-flow { stroke: #f97316; stroke-width: 2; fill: none; marker-end: url(#arrowConfirm); stroke-dasharray: 4 2; }
+      .legend-text { font-size: 10px; font-family: 'SF Mono', Consolas, monospace; }
     </style>
   </defs>
 
-  <text x="20" y="65" class="layer-label">CLIENT</text>
-  <text x="20" y="155" class="layer-label">PRESENTATION</text>
-  <text x="20" y="245" class="layer-label">API</text>
-  <text x="20" y="345" class="layer-label">ORCHESTRATION</text>
-  <text x="20" y="465" class="layer-label">AGENTS</text>
-  <text x="20" y="605" class="layer-label">DATA</text>
-  <text x="20" y="700" class="layer-label">LLM</text>
+  <!-- Title -->
+  <text x="600" y="32" text-anchor="middle" font-size="20" font-weight="800" fill="#0f172a">Sutra — System Architecture</text>
+  <text x="600" y="50" text-anchor="middle" font-size="11" fill="#64748b" font-family="'SF Mono', Consolas, monospace" letter-spacing="2">MULTI-AGENT · STREAMING · OAUTH · HUMAN-IN-THE-LOOP</text>
 
-  <rect x="420" y="40" width="160" height="50" class="box" fill="#eff6ff" stroke="#3b82f6"/>
-  <text x="500" y="62" class="title" fill="#1e3a8a">User</text>
-  <text x="500" y="78" class="sub" fill="#475569">Voice · Text</text>
+  <!-- LAYER LABELS -->
+  <text x="24" y="92" class="layer-label">USER INTERFACE</text>
+  <text x="24" y="270" class="layer-label">TRANSPORT LAYER</text>
+  <text x="24" y="412" class="layer-label">ORCHESTRATOR · GEMINI FUNCTION CALLING</text>
+  <text x="100" y="540" class="layer-label">SUB-AGENT NETWORK</text>
+  <text x="100" y="680" class="layer-label">TOOLS · REAL APIs + SQLITE</text>
 
-  <rect x="350" y="130" width="300" height="55" class="box" fill="#f0fdf4" stroke="#22c55e"/>
-  <text x="500" y="152" class="title" fill="#14532d">React 19 + TypeScript</text>
-  <text x="500" y="170" class="sub" fill="#475569">Vite · Tailwind · Cloud Run</text>
+  <!-- ===================== UI LAYER ===================== -->
+  <rect x="80" y="80" width="220" height="160" class="box" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="190" y="110" class="title" fill="#1e3a8a">Orchestrate Screen</text>
+  <text x="190" y="132" class="sub" fill="#475569">React 19 + TypeScript</text>
+  <text x="190" y="152" class="sub" fill="#475569">Voice (en-IN) + Text input</text>
+  <text x="190" y="172" class="sub" fill="#475569">Hinglish-aware</text>
+  <line x1="100" y1="186" x2="280" y2="186" stroke="#3b82f6" stroke-opacity="0.3"/>
+  <text x="190" y="206" class="micro" fill="#1e3a8a">ChatResponse · CompactTrace</text>
+  <text x="190" y="222" class="micro" fill="#1e3a8a">AgentNetworkGraph · TokenMeter</text>
 
-  <rect x="350" y="220" width="300" height="55" class="box" fill="#fffbeb" stroke="#f59e0b"/>
-  <text x="500" y="242" class="title" fill="#78350f">FastAPI Backend</text>
-  <text x="500" y="260" class="sub" fill="#475569">/orchestrate · Cloud Run · Docker</text>
+  <rect x="330" y="80" width="180" height="160" class="box" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="420" y="108" class="title" fill="#1e3a8a">Other Screens</text>
+  <text x="420" y="132" class="sub" fill="#475569">Schedule · calendar</text>
+  <text x="420" y="152" class="sub" fill="#475569">Logs · history</text>
+  <text x="420" y="172" class="sub" fill="#475569">Knowledge · patterns</text>
+  <text x="420" y="200" class="micro" fill="#1e3a8a">React Router · Tailwind</text>
+  <text x="420" y="218" class="micro" fill="#1e3a8a">lucide-react icons</text>
 
-  <rect x="70"  y="310" width="180" height="70" class="box" fill="#f0f9ff" stroke="#0284c7"/>
-  <text x="160" y="335" class="title" fill="#0c4a6e">Response Cache</text>
-  <text x="160" y="353" class="sub" fill="#475569">Pre-warmed</text>
-  <text x="160" y="368" class="sub" fill="#475569">demo prompts</text>
+  <rect x="540" y="80" width="200" height="160" class="box" fill="#fff7ed" stroke="#f97316"/>
+  <text x="640" y="108" class="title" fill="#7c2d12">Confirmation Card</text>
+  <text x="640" y="132" class="sub" fill="#475569">Shown for outbound actions</text>
+  <text x="640" y="152" class="sub" fill="#475569">Email send · Calendar create</text>
+  <text x="640" y="172" class="sub" fill="#475569">User clicks Confirm / Cancel</text>
+  <text x="640" y="200" class="micro" fill="#7c2d12">/api/actions/{id}/confirm</text>
+  <text x="640" y="218" class="micro" fill="#7c2d12">/api/actions/{id}/cancel</text>
 
-  <rect x="310" y="310" width="380" height="70" class="box" fill="#f5f3ff" stroke="#7c3aed"/>
-  <text x="500" y="335" class="title" fill="#4c1d95">Orchestrator — Gemini Flash</text>
-  <text x="500" y="353" class="sub" fill="#475569">Plans agent dispatch · Function calling</text>
-  <text x="500" y="368" class="sub" fill="#475569">Synthesizes final response</text>
+  <rect x="770" y="80" width="180" height="160" class="box" fill="#faf5ff" stroke="#7c3aed"/>
+  <text x="860" y="108" class="title" fill="#581c87">ConnectCalendar</text>
+  <text x="860" y="132" class="sub" fill="#475569">Google OAuth 2.0</text>
+  <text x="860" y="152" class="sub" fill="#475569">Calendar + Gmail scopes</text>
+  <text x="860" y="172" class="sub" fill="#475569">Status polling</text>
+  <text x="860" y="200" class="micro" fill="#581c87">/auth/login → /callback</text>
+  <text x="860" y="218" class="micro" fill="#581c87">/auth/status · /disconnect</text>
 
-  <rect x="750" y="310" width="180" height="70" class="box" fill="#fff1f2" stroke="#e11d48"/>
-  <text x="840" y="335" class="title" fill="#881337">Learner</text>
-  <text x="840" y="353" class="sub" fill="#475569">SQL pattern</text>
-  <text x="840" y="368" class="sub" fill="#475569">detection</text>
+  <rect x="980" y="80" width="200" height="160" class="box" fill="#ecfdf5" stroke="#22c55e"/>
+  <text x="1080" y="108" class="title" fill="#14532d">AgentNetworkGraph</text>
+  <text x="1080" y="132" class="sub" fill="#475569">Live SVG visualization</text>
+  <text x="1080" y="152" class="sub" fill="#475569">Pulsing edges on dispatch</text>
+  <text x="1080" y="172" class="sub" fill="#475569">Glowing active agents</text>
+  <text x="1080" y="200" class="micro" fill="#14532d">Driven by SSE event stream</text>
+  <text x="1080" y="218" class="micro" fill="#14532d">No fake animations</text>
 
-  <rect x="35"  y="430" width="145" height="65" class="box" fill="#fdf2f8" stroke="#db2777"/>
-  <text x="107.5" y="455" class="title" fill="#831843">Scheduler</text>
-  <text x="107.5" y="475" class="sub" fill="#475569">Calendar</text>
+  <!-- ===================== TRANSPORT LAYER ===================== -->
+  <rect x="80" y="280" width="550" height="115" class="box" fill="#f0fdf4" stroke="#22c55e" stroke-dasharray="4 2"/>
+  <text x="355" y="310" class="title" fill="#14532d">Server-Sent Events (text/event-stream)</text>
+  <text x="355" y="334" class="sub" fill="#475569">POST /orchestrate/stream</text>
+  <text x="355" y="354" class="sub" fill="#475569">events: trace · plan · complete · error</text>
+  <text x="355" y="374" class="sub" fill="#475569">Each agent step pushed in real time — no polling</text>
 
-  <rect x="195" y="430" width="145" height="65" class="box" fill="#fdf2f8" stroke="#db2777"/>
-  <text x="267.5" y="455" class="title" fill="#831843">TaskAgent</text>
-  <text x="267.5" y="475" class="sub" fill="#475569">To-do list</text>
+  <rect x="660" y="280" width="240" height="115" class="box" fill="#fff7ed" stroke="#f97316" stroke-dasharray="4 2"/>
+  <text x="780" y="310" class="title" fill="#7c2d12">Action Confirmation API</text>
+  <text x="780" y="334" class="sub" fill="#475569">GET /api/actions/{id}</text>
+  <text x="780" y="354" class="sub" fill="#475569">POST .../confirm  |  .../cancel</text>
+  <text x="780" y="374" class="sub" fill="#475569">Two-phase commit for outbound actions</text>
 
-  <rect x="355" y="430" width="145" height="65" class="box" fill="#fdf2f8" stroke="#db2777"/>
-  <text x="427.5" y="455" class="title" fill="#831843">Scribe</text>
-  <text x="427.5" y="475" class="sub" fill="#475569">Messages</text>
+  <rect x="930" y="280" width="250" height="115" class="box" fill="#faf5ff" stroke="#7c3aed" stroke-dasharray="4 2"/>
+  <text x="1055" y="310" class="title" fill="#581c87">OAuth 2.0 Flow</text>
+  <text x="1055" y="334" class="sub" fill="#475569">Authorization code grant</text>
+  <text x="1055" y="354" class="sub" fill="#475569">Calendar + Gmail scopes</text>
+  <text x="1055" y="374" class="sub" fill="#475569">Tokens persisted in SQLite</text>
 
-  <rect x="515" y="430" width="145" height="65" class="box" fill="#fdf2f8" stroke="#db2777"/>
-  <text x="587.5" y="455" class="title" fill="#831843">WeatherAgent</text>
-  <text x="587.5" y="475" class="sub" fill="#475569">Forecasts</text>
+  <!-- ===================== ORCHESTRATOR ===================== -->
+  <rect x="80" y="420" width="1100" height="105" class="box" fill="url(#orchGradient)" stroke="#06b6d4" stroke-width="2"/>
+  <text x="630" y="453" class="title" fill="#164e63" font-size="16">Orchestrator</text>
+  <text x="630" y="477" class="sub" fill="#475569">Gemini Flash · function calling · JSON plan generation</text>
+  <text x="630" y="497" class="sub" fill="#475569">Loads conversation memory → decomposes request → selects sub-agents → synthesizes response → streams trace</text>
+  <text x="630" y="515" class="micro" fill="#164e63">Generator pattern · yields {type, agent, message, tool, args, result, token_count} per step</text>
 
-  <rect x="675" y="430" width="145" height="65" class="box" fill="#fdf2f8" stroke="#db2777"/>
-  <text x="747.5" y="455" class="title" fill="#831843">RoutineAgent</text>
-  <text x="747.5" y="475" class="sub" fill="#475569">Focus mode</text>
+  <!-- ===================== SUB-AGENTS ===================== -->
+  <!-- Centered row of five working agents + Learner -->
+  <rect x="178" y="555" width="130" height="85" class="box" fill="#fdf2f8" stroke="#db2777"/>
+  <text x="243" y="581" class="title" fill="#831843">Scheduler</text>
+  <text x="243" y="599" class="sub" fill="#475569">Get · Create · Reschedule</text>
+  <text x="243" y="617" class="micro" fill="#831843">Real Google Cal</text>
+  <text x="243" y="631" class="micro" fill="#7c2d12">Create needs confirm</text>
 
-  <rect x="835" y="430" width="145" height="65" class="box" fill="#fdf2f8" stroke="#db2777"/>
-  <text x="907.5" y="455" class="title" fill="#831843">ScreenAgent</text>
-  <text x="907.5" y="475" class="sub" fill="#475569">Inbox scan</text>
+  <rect x="323" y="555" width="130" height="85" class="box" fill="#fdf2f8" stroke="#db2777"/>
+  <text x="388" y="581" class="title" fill="#831843">TaskAgent</text>
+  <text x="388" y="599" class="sub" fill="#475569">Get + create tasks</text>
+  <text x="388" y="617" class="micro" fill="#831843">SQLite</text>
 
-  <rect x="350" y="570" width="300" height="60" class="box" fill="#ecfeff" stroke="#0891b2"/>
-  <text x="500" y="595" class="title" fill="#164e63">SQLite</text>
-  <text x="500" y="613" class="sub" fill="#475569">Calendar · Tasks · Request history</text>
+  <rect x="468" y="555" width="130" height="85" class="box" fill="#fdf2f8" stroke="#db2777"/>
+  <text x="533" y="581" class="title" fill="#831843">Scribe</text>
+  <text x="533" y="599" class="sub" fill="#475569">Draft · Prepare email</text>
+  <text x="533" y="617" class="micro" fill="#831843">Gemini gen</text>
+  <text x="533" y="631" class="micro" fill="#7c2d12">Send needs confirm</text>
 
-  <rect x="350" y="670" width="300" height="55" class="box" fill="#f8fafc" stroke="#64748b"/>
-  <text x="500" y="692" class="title" fill="#0f172a">Gemini 2.5 Flash</text>
-  <text x="500" y="710" class="sub" fill="#475569">Google AI Studio API · Function calling</text>
+  <rect x="613" y="555" width="130" height="85" class="box" fill="#fdf2f8" stroke="#db2777"/>
+  <text x="678" y="581" class="title" fill="#831843">WeatherAgent</text>
+  <text x="678" y="599" class="sub" fill="#475569">Forecasts + advice</text>
+  <text x="678" y="617" class="micro" fill="#831843">Open-Meteo</text>
 
-  <path class="flow" d="M 500 90 L 500 128"/>
-  <path class="flow" d="M 500 185 L 500 218"/>
-  <path class="flow" d="M 500 275 L 500 308"/>
+  <rect x="758" y="555" width="130" height="85" class="box" fill="#fdf2f8" stroke="#db2777"/>
+  <text x="823" y="581" class="title" fill="#831843">ResearchAgent</text>
+  <text x="823" y="599" class="sub" fill="#475569">Web + tech news</text>
+  <text x="823" y="617" class="micro" fill="#831843">DuckDuckGo · HN</text>
 
-  <path class="flow" d="M 310 345 L 252 345"/>
-  <path class="flow" d="M 250 360 L 308 360"/>
+  <rect x="903" y="555" width="120" height="85" class="box" fill="#fefce8" stroke="#ca8a04"/>
+  <text x="963" y="581" class="title" fill="#713f12">Learner</text>
+  <text x="963" y="599" class="sub" fill="#475569">Pattern detection</text>
+  <text x="963" y="617" class="micro" fill="#713f12">Reads history</text>
 
-  <path class="flow" d="M 690 345 L 748 345"/>
-  <path class="flow" d="M 750 360 L 692 360"/>
+  <!-- Memory note -->
+  <text x="600" y="808" class="sub" fill="#7c2d12" font-style="italic">⚠ Outbound actions (orange) prepare a staged action — only the user can confirm-execute it</text>
 
-  <path class="flow" d="M 360 380 L 130 428"/>
-  <path class="flow" d="M 415 380 L 250 428"/>
-  <path class="flow" d="M 460 380 L 415 428"/>
-  <path class="flow" d="M 540 380 L 585 428"/>
-  <path class="flow" d="M 585 380 L 750 428"/>
-  <path class="flow" d="M 640 380 L 870 428"/>
+  <!-- ===================== TOOLS LAYER ===================== -->
+  <rect x="123" y="690" width="150" height="80" class="box" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="198" y="716" class="title" fill="#14532d">Google Calendar</text>
+  <text x="198" y="734" class="sub" fill="#475569">list · insert · patch</text>
+  <text x="198" y="752" class="micro" fill="#14532d">OAuth · calendar scope</text>
 
-  <path class="flow" d="M 107.5 495 L 380 568"/>
-  <path class="flow" d="M 267.5 495 L 420 568"/>
-  <path class="flow" d="M 427.5 495 L 460 568"/>
-  <path class="flow" d="M 587.5 495 L 540 568"/>
-  <path class="flow" d="M 747.5 495 L 580 568"/>
-  <path class="flow" d="M 907.5 495 L 620 568"/>
+  <rect x="288" y="690" width="130" height="80" class="box" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="353" y="716" class="title" fill="#14532d">Gmail</text>
+  <text x="353" y="734" class="sub" fill="#475569">messages.send</text>
+  <text x="353" y="752" class="micro" fill="#14532d">OAuth · gmail.send</text>
 
-  <path class="flow-dashed" d="M 650 595 L 840 382"/>
+  <rect x="433" y="690" width="140" height="80" class="box" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="503" y="716" class="title" fill="#14532d">Open-Meteo</text>
+  <text x="503" y="734" class="sub" fill="#475569">Free · no API key</text>
+  <text x="503" y="752" class="micro" fill="#14532d">api.open-meteo.com</text>
 
-  <path class="flow-dashed" d="M 500 630 L 500 668"/>
-  <path class="flow-dashed" d="M 380 380 Q 200 600 380 668"/>
-  <path class="flow-dashed" d="M 620 380 Q 800 600 620 668"/>
+  <rect x="588" y="690" width="140" height="80" class="box" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="658" y="716" class="title" fill="#14532d">DuckDuckGo</text>
+  <text x="658" y="734" class="sub" fill="#475569">Instant Answer API</text>
+  <text x="658" y="752" class="micro" fill="#14532d">api.duckduckgo.com</text>
 
-  <g transform="translate(770, 50)">
-    <rect x="0" y="0" width="210" height="62" fill="#ffffff" stroke="#cbd5e1" stroke-width="1" rx="6"/>
-    <text x="105" y="16" font-size="10" font-weight="600" fill="#475569" text-anchor="middle" letter-spacing="0.5">LEGEND</text>
-    <line x1="12" y1="32" x2="44" y2="32" stroke="#64748b" stroke-width="1.8" marker-end="url(#arrow)"/>
-    <text x="52" y="35" font-size="10" fill="#475569">Data flow</text>
-    <line x1="12" y1="50" x2="44" y2="50" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrowDashed)"/>
-    <text x="52" y="53" font-size="10" fill="#475569">External LLM call</text>
+  <rect x="743" y="690" width="140" height="80" class="box" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="813" y="716" class="title" fill="#14532d">Hacker News</text>
+  <text x="813" y="734" class="sub" fill="#475569">Firebase API</text>
+  <text x="813" y="752" class="micro" fill="#14532d">hacker-news.firebaseio</text>
+
+  <rect x="898" y="690" width="180" height="80" class="box" fill="#fffbeb" stroke="#f59e0b"/>
+  <text x="988" y="716" class="title" fill="#78350f">SQLite (sutra.db)</text>
+  <text x="988" y="734" class="sub" fill="#475569">tokens · cal · tasks · history</text>
+  <text x="988" y="752" class="micro" fill="#78350f">conversation · actions · patterns</text>
+
+  <!-- ===================== ARROWS ===================== -->
+  <!-- UI → Transport -->
+  <path class="flow" d="M 190 240 L 200 278"/>
+  <path class="flow" d="M 420 240 L 360 278"/>
+  <!-- Confirmation card → Action Confirmation API -->
+  <path class="confirm-flow" d="M 640 240 L 780 278"/>
+  <!-- ConnectCalendar → OAuth -->
+  <path class="auth-flow" d="M 860 240 L 1050 278"/>
+  <!-- AgentNetworkGraph ← SSE -->
+  <path class="stream-flow" d="M 700 282 Q 900 260 1050 240"/>
+
+  <!-- Transport → Orchestrator (both directions) -->
+  <path class="flow" d="M 355 395 L 430 418"/>
+  <path class="stream-flow" d="M 470 418 L 410 397"/>
+  <!-- Action API → Orchestrator -->
+  <path class="confirm-flow" d="M 780 395 L 750 418"/>
+  <!-- OAuth → tools (Calendar + Gmail) -->
+  <path class="auth-flow" d="M 1055 395 L 198 688"/>
+  <path class="auth-flow" d="M 1055 395 L 353 688"/>
+
+  <!-- Orchestrator → 5 sub-agents + Learner -->
+  <path class="flow" d="M 270 525 L 243 553"/>
+  <path class="flow" d="M 405 525 L 388 553"/>
+  <path class="flow" d="M 535 525 L 533 553"/>
+  <path class="flow" d="M 665 525 L 678 553"/>
+  <path class="flow" d="M 795 525 L 823 553"/>
+  <!-- Learner is read-only, dashed -->
+  <path d="M 935 525 L 963 553" stroke="#ca8a04" stroke-width="1.5" stroke-dasharray="3 3" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- Sub-agents → tools -->
+  <!-- Scheduler → Calendar (with confirm sidetrack) -->
+  <path class="flow" d="M 243 640 L 198 688"/>
+  <path class="confirm-flow" d="M 243 640 Q 350 665 780 395" opacity="0.5"/>
+  <!-- TaskAgent → SQLite -->
+  <path class="flow" d="M 388 640 L 988 688" stroke="#f59e0b" opacity="0.6"/>
+  <!-- Scribe → Gmail (with confirm sidetrack) -->
+  <path class="flow" d="M 533 640 L 353 688"/>
+  <path class="confirm-flow" d="M 533 640 Q 610 665 780 395" opacity="0.5"/>
+  <!-- Weather -->
+  <path class="flow" d="M 678 640 L 503 688"/>
+  <!-- Research -->
+  <path class="flow" d="M 823 640 L 658 688"/>
+  <path class="flow" d="M 823 640 L 813 688"/>
+  <!-- Scheduler + TaskAgent also write to SQLite for local caching -->
+  <path class="flow" d="M 243 640 Q 580 665 988 688" stroke="#f59e0b" opacity="0.3"/>
+  <!-- Learner → SQLite (read) -->
+  <path d="M 963 640 L 988 688" stroke="#ca8a04" stroke-width="1.5" stroke-dasharray="3 3" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- ===================== LEGEND ===================== -->
+  <g transform="translate(60, 850)">
+    <line x1="0" y1="0" x2="30" y2="0" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow)"/>
+    <text x="38" y="4" class="legend-text" fill="#475569">Request flow</text>
+
+    <line x1="150" y1="0" x2="180" y2="0" class="stream-flow" marker-end="url(#arrowStream)"/>
+    <text x="188" y="4" class="legend-text" fill="#475569">SSE stream</text>
+
+    <line x1="290" y1="0" x2="320" y2="0" class="confirm-flow" marker-end="url(#arrowConfirm)"/>
+    <text x="328" y="4" class="legend-text" fill="#475569">Confirm flow</text>
+
+    <line x1="450" y1="0" x2="480" y2="0" class="auth-flow" marker-end="url(#arrowAuth)"/>
+    <text x="488" y="4" class="legend-text" fill="#475569">OAuth</text>
+
+    <line x1="570" y1="0" x2="600" y2="0" stroke="#ca8a04" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arrow)"/>
+    <text x="608" y="4" class="legend-text" fill="#475569">Read-only</text>
+
+    <rect x="710" y="-6" width="14" height="12" fill="#f0fdf4" stroke="#22c55e" rx="2"/>
+    <text x="730" y="4" class="legend-text" fill="#475569">Real API</text>
+
+    <rect x="830" y="-6" width="14" height="12" fill="#fff7ed" stroke="#f97316" rx="2"/>
+    <text x="850" y="4" class="legend-text" fill="#475569">Needs human confirm</text>
   </g>
 </svg>

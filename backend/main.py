@@ -109,8 +109,6 @@ def root() -> dict:
             "Scribe",
             "WeatherAgent",
             "ResearchAgent",
-            "RoutineAgent",
-            "ScreenAgent",
             "Learner",
         ],
         "cached_prompts": len(_response_cache),

@@ -92,12 +92,6 @@ const QUICK_PROMPTS = [
       + 'the Q4 deck and draft a message to Marcus.',
   },
   {
-    label: 'Focus',
-    text:
-      'Activate focus mode for two hours '
-      + 'for deep project work.',
-  },
-  {
     label: 'Hinglish',
     text:
       'Kal Bengaluru ka weather check karo '
