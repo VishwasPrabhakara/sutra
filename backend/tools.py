@@ -6,11 +6,16 @@ from typing import Any
 import httpx
 
 from calendar_service import (
+    create_calendar_event,
     is_calendar_connected,
     list_calendar_events,
     reschedule_calendar_event,
 )
-from db import get_conn
+from db import (
+    create_pending_action,
+    get_conn,
+)
+from gmail_service import is_gmail_connected
 
 HTTP_TIMEOUT = 15.0
 
@@ -21,7 +26,7 @@ def get_calendar_events(
     user_id: str = "vishwas",
     date: str | None = None,
 ) -> dict:
-    """Get events from Google Calendar or the local fallback calendar."""
+    """Get Google Calendar events or local fallback events."""
     if is_calendar_connected(user_id):
         try:
             events = list_calendar_events(user_id)
@@ -30,7 +35,9 @@ def get_calendar_events(
                 events = [
                     event
                     for event in events
-                    if str(event["start_time"]).startswith(date)
+                    if str(
+                        event.get("start_time", "")
+                    ).startswith(date)
                 ]
 
             return {
@@ -40,7 +47,9 @@ def get_calendar_events(
                 "source": "google",
             }
         except Exception as exc:
-            print(f"Google Calendar lookup failed: {exc}")
+            print(
+                f"Google Calendar lookup failed: {exc}"
+            )
 
     conn = get_conn()
 
@@ -49,7 +58,9 @@ def get_calendar_events(
             """
             SELECT *
             FROM calendar_events
-            WHERE user_id = ? AND start_time LIKE ?
+            WHERE
+                user_id = ?
+                AND start_time LIKE ?
             ORDER BY start_time
             """,
             (user_id, f"{date}%"),
@@ -83,12 +94,108 @@ def get_calendar_events(
     }
 
 
+def create_event(
+    title: str,
+    start_time: str,
+    end_time: str | None = None,
+    description: str = "",
+    location: str = "",
+    attendees: list[str] | None = None,
+    timezone_name: str = "Asia/Kolkata",
+    user_id: str = "vishwas",
+) -> dict:
+    """Create an event in Google Calendar or local storage."""
+    if is_calendar_connected(user_id):
+        try:
+            return create_calendar_event(
+                user_id=user_id,
+                title=title,
+                start_time=start_time,
+                end_time=end_time,
+                description=description,
+                location=location,
+                attendees=attendees,
+                timezone_name=timezone_name,
+            )
+        except Exception as exc:
+            return {
+                "status": "error",
+                "message": (
+                    "Google Calendar event creation "
+                    f"failed: {exc}"
+                ),
+                "source": "google",
+            }
+
+    start = parse_datetime(start_time)
+
+    if end_time:
+        end = parse_datetime(end_time)
+    else:
+        end = start + timedelta(hours=1)
+
+    if end <= start:
+        return {
+            "status": "error",
+            "message": (
+                "Event end time must be after "
+                "the start time"
+            ),
+        }
+
+    conn = get_conn()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        INSERT INTO calendar_events (
+            user_id,
+            title,
+            start_time,
+            end_time,
+            created_at
+        )
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            user_id,
+            title,
+            start.isoformat(),
+            end.isoformat(),
+            datetime.now().isoformat(),
+        ),
+    )
+
+    event_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+
+    return {
+        "status": "success",
+        "message": (
+            f"Created local calendar event '{title}'"
+        ),
+        "event": {
+            "id": event_id,
+            "user_id": user_id,
+            "title": title,
+            "start_time": start.isoformat(),
+            "end_time": end.isoformat(),
+            "description": description,
+            "location": location,
+            "attendees": attendees or [],
+            "source": "local",
+        },
+        "source": "local",
+    }
+
+
 def reschedule_event(
     event_title: str,
     new_start_time: str,
     user_id: str = "vishwas",
 ) -> dict:
-    """Reschedule an event using Google Calendar or local storage."""
+    """Reschedule a Google or local event."""
     if is_calendar_connected(user_id):
         try:
             return reschedule_calendar_event(
@@ -99,7 +206,10 @@ def reschedule_event(
         except Exception as exc:
             return {
                 "status": "error",
-                "message": f"Google Calendar update failed: {exc}",
+                "message": (
+                    "Google Calendar update failed: "
+                    f"{exc}"
+                ),
                 "source": "google",
             }
 
@@ -109,27 +219,39 @@ def reschedule_event(
         """
         SELECT *
         FROM calendar_events
-        WHERE user_id = ? AND title LIKE ?
+        WHERE
+            user_id = ?
+            AND title LIKE ?
         ORDER BY start_time
         LIMIT 1
         """,
-        (user_id, f"%{event_title}%"),
+        (
+            user_id,
+            f"%{event_title}%",
+        ),
     ).fetchone()
 
     if row is None:
         conn.close()
+
         return {
             "status": "not_found",
-            "message": f"No event matching '{event_title}'",
+            "message": (
+                f"No event matching '{event_title}'"
+            ),
             "source": "local",
         }
 
-    old_start = datetime.fromisoformat(row["start_time"])
-    old_end = datetime.fromisoformat(row["end_time"])
+    old_start = parse_datetime(
+        row["start_time"]
+    )
+    old_end = parse_datetime(
+        row["end_time"]
+    )
     duration = old_end - old_start
 
-    new_start = datetime.fromisoformat(
-        new_start_time.replace("Z", "+00:00")
+    new_start = parse_datetime(
+        new_start_time
     )
     new_end = new_start + duration
 
@@ -151,8 +273,17 @@ def reschedule_event(
 
     return {
         "status": "success",
-        "message": f"Rescheduled '{row['title']}' to {new_start.isoformat()}",
-        "event_id": row["id"],
+        "message": (
+            f"Rescheduled '{row['title']}' "
+            f"to {new_start.isoformat()}"
+        ),
+        "event": {
+            "id": row["id"],
+            "title": row["title"],
+            "start_time": new_start.isoformat(),
+            "end_time": new_end.isoformat(),
+            "source": "local",
+        },
         "source": "local",
     }
 
@@ -170,7 +301,9 @@ def get_tasks(
             """
             SELECT *
             FROM tasks
-            WHERE user_id = ? AND status = ?
+            WHERE
+                user_id = ?
+                AND status = ?
             ORDER BY created_at DESC
             """,
             (user_id, status),
@@ -201,7 +334,11 @@ def create_task(
     priority: str = "medium",
     user_id: str = "vishwas",
 ) -> dict:
-    if priority not in {"low", "medium", "high"}:
+    if priority not in {
+        "low",
+        "medium",
+        "high",
+    }:
         priority = "medium"
 
     conn = get_conn()
@@ -209,8 +346,13 @@ def create_task(
 
     cursor.execute(
         """
-        INSERT INTO tasks
-            (user_id, title, status, priority, created_at)
+        INSERT INTO tasks (
+            user_id,
+            title,
+            status,
+            priority,
+            created_at
+        )
         VALUES (?, ?, ?, ?, ?)
         """,
         (
@@ -229,7 +371,12 @@ def create_task(
     return {
         "status": "success",
         "message": f"Created task: {title}",
-        "task_id": task_id,
+        "task": {
+            "id": task_id,
+            "title": title,
+            "priority": priority,
+            "status": "pending",
+        },
     }
 
 
@@ -244,9 +391,14 @@ def complete_task(
         """
         UPDATE tasks
         SET status = 'completed'
-        WHERE user_id = ? AND title LIKE ?
+        WHERE
+            user_id = ?
+            AND title LIKE ?
         """,
-        (user_id, f"%{task_title}%"),
+        (
+            user_id,
+            f"%{task_title}%",
+        ),
     )
 
     affected = cursor.rowcount
@@ -256,24 +408,33 @@ def complete_task(
     if affected == 0:
         return {
             "status": "not_found",
-            "message": f"No task matching '{task_title}'",
+            "message": (
+                f"No task matching '{task_title}'"
+            ),
         }
 
     return {
         "status": "success",
-        "message": f"Completed: {task_title}",
+        "message": (
+            f"Completed task: {task_title}"
+        ),
         "affected": affected,
     }
 
 
-# ==================== SCRIBE ====================
+# ==================== EMAIL AND SCRIBE ====================
 
 def draft_message(
     recipient: str,
     topic: str,
     context: str = "",
 ) -> dict:
-    context_text = f" {context.strip()}" if context.strip() else ""
+    """Draft a message without sending it."""
+    context_text = (
+        f" {context.strip()}"
+        if context.strip()
+        else ""
+    )
 
     draft = (
         f"Hi {recipient},\n\n"
@@ -288,6 +449,85 @@ def draft_message(
         "recipient": recipient,
         "topic": topic,
         "draft": draft,
+        "sent": False,
+    }
+
+
+def prepare_email(
+    recipient: str,
+    subject: str,
+    body: str,
+    cc: list[str] | None = None,
+    user_id: str = "vishwas",
+) -> dict:
+    """
+    Prepare an email and create a confirmation request.
+
+    This tool never sends an email directly.
+    """
+    if not is_gmail_connected(user_id):
+        return {
+            "status": "not_connected",
+            "message": (
+                "Gmail is not connected. Reconnect "
+                "Google and approve Gmail sending."
+            ),
+            "requires_google_connection": True,
+        }
+
+    recipient = recipient.strip()
+    subject = subject.strip()
+    body = body.strip()
+
+    if not recipient or "@" not in recipient:
+        return {
+            "status": "invalid",
+            "message": (
+                "A valid recipient email address "
+                "is required before sending."
+            ),
+        }
+
+    if not subject:
+        return {
+            "status": "invalid",
+            "message": (
+                "The email subject cannot be empty."
+            ),
+        }
+
+    if not body:
+        return {
+            "status": "invalid",
+            "message": (
+                "The email body cannot be empty."
+            ),
+        }
+
+    payload = {
+        "recipient": recipient,
+        "subject": subject,
+        "body": body,
+        "cc": cc or [],
+    }
+
+    action_id = create_pending_action(
+        user_id=user_id,
+        action_type="send_email",
+        payload=payload,
+    )
+
+    return {
+        "status": "confirmation_required",
+        "message": (
+            "The email is ready. Review it and "
+            "confirm before Sutra sends it."
+        ),
+        "action_id": action_id,
+        "action_type": "send_email",
+        "requires_confirmation": True,
+        "email": payload,
+        "sent": False,
     }
 
 
@@ -297,9 +537,21 @@ def get_weather(
     location: str = "Bengaluru",
     date: str = "tomorrow",
 ) -> dict:
-    """Get a real forecast using the free Open-Meteo APIs."""
+    """Get weather from Open-Meteo with wttr.in fallback."""
+    timeout = httpx.Timeout(
+        30.0,
+        connect=20.0,
+    )
+
+    transport = httpx.HTTPTransport(
+        retries=2,
+    )
+
     try:
-        with httpx.Client(timeout=HTTP_TIMEOUT) as client:
+        with httpx.Client(
+            timeout=timeout,
+            transport=transport,
+        ) as client:
             geocoding_response = client.get(
                 "https://geocoding-api.open-meteo.com/v1/search",
                 params={
@@ -310,12 +562,19 @@ def get_weather(
                 },
             )
             geocoding_response.raise_for_status()
-            locations = geocoding_response.json().get("results", [])
+
+            locations = (
+                geocoding_response.json()
+                .get("results", [])
+            )
 
             if not locations:
                 return {
                     "status": "not_found",
-                    "message": f"Could not find location '{location}'",
+                    "message": (
+                        f"Could not find location "
+                        f"'{location}'"
+                    ),
                 }
 
             place = locations[0]
@@ -338,34 +597,194 @@ def get_weather(
             forecast_response.raise_for_status()
             daily = forecast_response.json()["daily"]
 
-        index = _forecast_day_index(date, daily["time"])
-        weather_code = daily["weather_code"][index]
-        rain_probability = daily["precipitation_probability_max"][index]
+        index = forecast_day_index(
+            date,
+            daily["time"],
+        )
+
+        rain_probability = daily[
+            "precipitation_probability_max"
+        ][index]
 
         return {
             "status": "success",
-            "location": place.get("name", location),
+            "location": place.get(
+                "name",
+                location,
+            ),
             "country": place.get("country"),
             "date": daily["time"][index],
-            "condition": _weather_description(weather_code),
-            "temperature_max_c": daily["temperature_2m_max"][index],
-            "temperature_min_c": daily["temperature_2m_min"][index],
-            "rain_probability_percent": rain_probability,
-            "advice": (
-                "Consider moving outdoor activities indoors."
-                if rain_probability >= 60
-                else "Conditions appear suitable for outdoor plans."
+            "condition": weather_description(
+                daily["weather_code"][index]
+            ),
+            "temperature_max_c": daily[
+                "temperature_2m_max"
+            ][index],
+            "temperature_min_c": daily[
+                "temperature_2m_min"
+            ][index],
+            "rain_probability_percent": (
+                rain_probability
+            ),
+            "advice": weather_advice(
+                rain_probability
             ),
             "source": "Open-Meteo",
         }
-    except httpx.HTTPError as exc:
+
+    except (
+        httpx.HTTPError,
+        TimeoutError,
+    ) as exc:
+        print(
+            "Open-Meteo failed, using fallback: "
+            f"{exc}"
+        )
+
+        return get_weather_fallback(
+            location,
+            date,
+        )
+    
+def get_weather_fallback(
+    location: str,
+    requested_date: str,
+) -> dict:
+    """Use wttr.in when Open-Meteo is unavailable."""
+    try:
+        response = httpx.get(
+            f"https://wttr.in/{location}",
+            params={"format": "j1"},
+            timeout=30.0,
+            follow_redirects=True,
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        forecasts = data.get("weather", [])
+
+        if not forecasts:
+            raise ValueError(
+                "Fallback returned no forecast"
+            )
+
+        dates = [
+            forecast["date"]
+            for forecast in forecasts
+        ]
+
+        index = forecast_day_index(
+            requested_date,
+            dates,
+        )
+
+        forecast = forecasts[index]
+        hourly = forecast.get("hourly", [])
+
+        rain_probability = max(
+            (
+                int(hour.get(
+                    "chanceofrain",
+                    0,
+                ))
+                for hour in hourly
+            ),
+            default=0,
+        )
+
+        representative = (
+            hourly[len(hourly) // 2]
+            if hourly
+            else {}
+        )
+
+        descriptions = representative.get(
+            "weatherDesc",
+            [],
+        )
+
+        condition = (
+            descriptions[0].get(
+                "value",
+                "Unknown",
+            ).strip()
+            if descriptions
+            else "Unknown"
+        )
+
+        area = (
+            data.get("nearest_area", [{}])[0]
+        )
+
+        area_names = area.get(
+            "areaName",
+            [],
+        )
+
+        countries = area.get(
+            "country",
+            [],
+        )
+
+        resolved_location = (
+            area_names[0].get("value")
+            if area_names
+            else location
+        )
+
+        country = (
+            countries[0].get("value")
+            if countries
+            else None
+        )
+
+        return {
+            "status": "success",
+            "location": resolved_location,
+            "country": country,
+            "date": forecast["date"],
+            "condition": condition,
+            "temperature_max_c": float(
+                forecast["maxtempC"]
+            ),
+            "temperature_min_c": float(
+                forecast["mintempC"]
+            ),
+            "rain_probability_percent": (
+                rain_probability
+            ),
+            "advice": weather_advice(
+                rain_probability
+            ),
+            "source": "wttr.in fallback",
+        }
+
+    except Exception as exc:
         return {
             "status": "error",
-            "message": f"Weather service failed: {exc}",
+            "message": (
+                "Both weather services failed: "
+                f"{exc}"
+            ),
         }
 
 
-def _forecast_day_index(
+def weather_advice(
+    rain_probability: int,
+) -> str:
+    if rain_probability >= 60:
+        return (
+            "Consider moving outdoor "
+            "activities indoors."
+        )
+
+    return (
+        "Conditions appear suitable "
+        "for outdoor plans."
+    )
+
+
+def forecast_day_index(
     requested_date: str,
     available_dates: list[str],
 ) -> int:
@@ -378,7 +797,9 @@ def _forecast_day_index(
         target = today + timedelta(days=1)
     else:
         try:
-            target = datetime.fromisoformat(requested_date).date()
+            target = datetime.fromisoformat(
+                requested_date
+            ).date()
         except ValueError:
             weekdays = {
                 "monday": 0,
@@ -390,23 +811,41 @@ def _forecast_day_index(
                 "sunday": 6,
             }
 
-            requested_weekday = weekdays.get(value)
+            requested_weekday = weekdays.get(
+                value
+            )
 
             if requested_weekday is None:
-                return min(1, len(available_dates) - 1)
+                return min(
+                    1,
+                    len(available_dates) - 1,
+                )
 
-            days_ahead = (requested_weekday - today.weekday()) % 7
-            target = today + timedelta(days=days_ahead)
+            days_ahead = (
+                requested_weekday
+                - today.weekday()
+            ) % 7
+
+            target = today + timedelta(
+                days=days_ahead
+            )
 
     target_text = target.isoformat()
 
     if target_text in available_dates:
-        return available_dates.index(target_text)
+        return available_dates.index(
+            target_text
+        )
 
-    return min(1, len(available_dates) - 1)
+    return min(
+        1,
+        len(available_dates) - 1,
+    )
 
 
-def _weather_description(code: int) -> str:
+def weather_description(
+    code: int,
+) -> str:
     descriptions = {
         0: "Clear sky",
         1: "Mostly clear",
@@ -428,10 +867,15 @@ def _weather_description(code: int) -> str:
         82: "Heavy rain showers",
         95: "Thunderstorm",
         96: "Thunderstorm with hail",
-        99: "Severe thunderstorm with hail",
+        99: (
+            "Severe thunderstorm with hail"
+        ),
     }
 
-    return descriptions.get(code, f"Weather code {code}")
+    return descriptions.get(
+        code,
+        f"Weather code {code}",
+    )
 
 
 # ==================== WEB SEARCH ====================
@@ -440,7 +884,7 @@ def search_web(
     query: str,
     max_results: int = 5,
 ) -> dict:
-    """Search DuckDuckGo's public Instant Answer API."""
+    """Search DuckDuckGo's Instant Answer API."""
     try:
         response = httpx.get(
             "https://api.duckduckgo.com/",
@@ -452,41 +896,55 @@ def search_web(
             },
             timeout=HTTP_TIMEOUT,
         )
+
         response.raise_for_status()
         data = response.json()
 
         results: list[dict[str, Any]] = []
 
         if data.get("AbstractText"):
-            results.append(
-                {
-                    "title": data.get("Heading") or query,
-                    "summary": data["AbstractText"],
-                    "url": data.get("AbstractURL"),
-                }
-            )
+            results.append({
+                "title": (
+                    data.get("Heading")
+                    or query
+                ),
+                "summary": data[
+                    "AbstractText"
+                ],
+                "url": data.get(
+                    "AbstractURL"
+                ),
+            })
 
-        for topic in data.get("RelatedTopics", []):
+        for topic in data.get(
+            "RelatedTopics",
+            [],
+        ):
             if len(results) >= max_results:
                 break
 
-            if "Topics" in topic:
-                candidates = topic["Topics"]
-            else:
-                candidates = [topic]
+            candidates = (
+                topic.get("Topics", [])
+                if "Topics" in topic
+                else [topic]
+            )
 
             for candidate in candidates:
                 if len(results) >= max_results:
                     break
 
                 if candidate.get("Text"):
-                    results.append(
-                        {
-                            "title": candidate["Text"].split(" - ")[0],
-                            "summary": candidate["Text"],
-                            "url": candidate.get("FirstURL"),
-                        }
-                    )
+                    results.append({
+                        "title": candidate[
+                            "Text"
+                        ].split(" - ")[0],
+                        "summary": candidate[
+                            "Text"
+                        ],
+                        "url": candidate.get(
+                            "FirstURL"
+                        ),
+                    })
 
         return {
             "status": "success",
@@ -495,53 +953,78 @@ def search_web(
             "results": results,
             "source": "DuckDuckGo",
         }
+
     except httpx.HTTPError as exc:
         return {
             "status": "error",
-            "message": f"Search service failed: {exc}",
+            "message": (
+                f"Search service failed: {exc}"
+            ),
         }
 
 
 # ==================== HACKER NEWS ====================
 
-def get_hacker_news(limit: int = 5) -> dict:
-    """Get current top stories from the official Hacker News API."""
-    limit = max(1, min(limit, 20))
+def get_hacker_news(
+    limit: int = 5,
+) -> dict:
+    """Get top stories from Hacker News."""
+    limit = max(
+        1,
+        min(limit, 20),
+    )
 
     try:
-        with httpx.Client(timeout=HTTP_TIMEOUT) as client:
+        with httpx.Client(
+            timeout=HTTP_TIMEOUT
+        ) as client:
             response = client.get(
-                "https://hacker-news.firebaseio.com/v0/topstories.json"
+                (
+                    "https://hacker-news."
+                    "firebaseio.com/v0/"
+                    "topstories.json"
+                )
             )
+
             response.raise_for_status()
             story_ids = response.json()[:limit]
-
             stories = []
 
             for story_id in story_ids:
                 story_response = client.get(
-                    "https://hacker-news.firebaseio.com/"
-                    f"v0/item/{story_id}.json"
+                    (
+                        "https://hacker-news."
+                        "firebaseio.com/v0/item/"
+                        f"{story_id}.json"
+                    )
                 )
+
                 story_response.raise_for_status()
                 story = story_response.json()
 
                 if not story:
                     continue
 
-                stories.append(
-                    {
-                        "id": story["id"],
-                        "title": story.get("title"),
-                        "url": story.get(
-                            "url",
-                            f"https://news.ycombinator.com/item?id={story['id']}",
+                stories.append({
+                    "id": story["id"],
+                    "title": story.get("title"),
+                    "url": story.get(
+                        "url",
+                        (
+                            "https://news.ycombinator.com/"
+                            f"item?id={story['id']}"
                         ),
-                        "score": story.get("score", 0),
-                        "author": story.get("by"),
-                        "comments": story.get("descendants", 0),
-                    }
-                )
+                    ),
+                    "score": story.get(
+                        "score",
+                        0,
+                    ),
+                    "author": story.get("by"),
+                    "comments": story.get(
+                        "descendants",
+                        0,
+                    ),
+                })
 
         return {
             "status": "success",
@@ -549,10 +1032,14 @@ def get_hacker_news(limit: int = 5) -> dict:
             "stories": stories,
             "source": "Hacker News",
         }
+
     except httpx.HTTPError as exc:
         return {
             "status": "error",
-            "message": f"Hacker News service failed: {exc}",
+            "message": (
+                "Hacker News service failed: "
+                f"{exc}"
+            ),
         }
 
 
@@ -563,67 +1050,91 @@ def set_focus_mode(
     duration_minutes: int = 120,
     reason: str = "deep work",
 ) -> dict:
-    """Represent a focus-mode action for the current session."""
-    duration_minutes = max(1, min(duration_minutes, 480))
-    end_time = datetime.now() + timedelta(minutes=duration_minutes)
+    duration_minutes = max(
+        1,
+        min(duration_minutes, 480),
+    )
+
+    end_time = datetime.now() + timedelta(
+        minutes=duration_minutes
+    )
 
     return {
         "status": "success",
-        "focus_mode": "activated" if active else "deactivated",
+        "focus_mode": (
+            "activated"
+            if active
+            else "deactivated"
+        ),
         "reason": reason,
-        "duration_minutes": duration_minutes if active else 0,
-        "until": end_time.isoformat() if active else None,
+        "duration_minutes": (
+            duration_minutes
+            if active
+            else 0
+        ),
+        "until": (
+            end_time.isoformat()
+            if active
+            else None
+        ),
         "message": (
-            f"Focus mode activated for {duration_minutes} minutes."
+            f"Focus mode activated for "
+            f"{duration_minutes} minutes."
             if active
             else "Focus mode deactivated."
         ),
     }
 
 
-# ==================== SCREEN SCAN DEMO ====================
+# ==================== SCREEN DEMO ====================
 
-def scan_screen(source: str = "whatsapp") -> dict:
-    """
-    Return demo message-scan data.
-
-    Real WhatsApp, Slack, and email access requires separate provider
-    integrations and user authorization.
-    """
+def scan_screen(
+    source: str = "whatsapp",
+) -> dict:
+    """Return demonstration communication data."""
     mock_results = {
         "whatsapp": {
             "text": (
-                "Hey, meeting postponed to tomorrow at 2 PM "
-                "instead of 10 AM."
+                "Hey, meeting postponed to "
+                "tomorrow at 2 PM instead of 10 AM."
             ),
             "sender": "Marcus",
             "detected_intent": "reschedule",
             "suggested_action": (
-                "Update Sprint Demo to tomorrow at 2 PM."
+                "Update Sprint Demo to tomorrow "
+                "at 2 PM."
             ),
         },
         "slack": {
             "text": (
-                "Team standup moved to 11:30 AM tomorrow. "
-                "Please update your calendar."
+                "Team standup moved to 11:30 AM "
+                "tomorrow."
             ),
             "sender": "#eng-team",
             "detected_intent": "reschedule",
             "suggested_action": (
-                "Update Team Standup to tomorrow at 11:30 AM."
+                "Update Team Standup to tomorrow "
+                "at 11:30 AM."
             ),
         },
         "email": {
-            "text": "Q4 review meeting confirmed for Friday at 3 PM.",
-            "sender": "priya.krishnan@company.com",
+            "text": (
+                "Q4 review meeting confirmed for "
+                "Friday at 3 PM."
+            ),
+            "sender": (
+                "priya.krishnan@company.com"
+            ),
             "detected_intent": "new_event",
             "suggested_action": (
-                "Add Q4 Review to the calendar for Friday at 3 PM."
+                "Add Q4 Review to the calendar "
+                "for Friday at 3 PM."
             ),
         },
     }
 
     normalized_source = source.lower()
+
     result = mock_results.get(
         normalized_source,
         mock_results["whatsapp"],
@@ -638,6 +1149,15 @@ def scan_screen(source: str = "whatsapp") -> dict:
     }
 
 
+def parse_datetime(
+    value: str,
+) -> datetime:
+    """Parse an ISO datetime value."""
+    return datetime.fromisoformat(
+        value.replace("Z", "+00:00")
+    )
+
+
 if __name__ == "__main__":
     from db import init_db
 
@@ -645,6 +1165,10 @@ if __name__ == "__main__":
 
     print("Calendar:", get_calendar_events())
     print("Tasks:", get_tasks())
-    print("Weather:", get_weather("Bengaluru", "tomorrow"))
-    print("Search:", search_web("Google Gemini"))
-    print("Hacker News:", get_hacker_news(3))
+    print(
+        "Weather:",
+        get_weather(
+            "Bengaluru",
+            "tomorrow",
+        ),
+    )

@@ -1,28 +1,33 @@
 import {
-  Brain,
-  CheckCircle2,
   CircleAlert,
   Cpu,
-  Lightbulb,
+  Database,
   Mic,
   Send,
-  Sparkles,
   Square,
-  Wrench,
+  Trash2,
+  Volume2,
+  VolumeX,
   Zap,
 } from 'lucide-react';
 import {
   useEffect,
   useRef,
   useState,
+  type KeyboardEvent,
 } from 'react';
 
 import {
+  clearConversation,
+  getConversation,
   streamOrchestration,
+  type ConversationMessage,
   type OrchestrateResponse,
   type TraceStep,
 } from '../api';
 import AgentNetworkGraph from '../components/AgentNetworkGraph';
+import ChatResponse from '../components/ChatResponse';
+import CompactTrace from '../components/CompactTrace';
 import ConnectCalendar from '../components/ConnectCalendar';
 import TokenMeter from '../components/TokenMeter';
 
@@ -37,8 +42,7 @@ interface SpeechRecognitionEvent extends Event {
   };
 }
 
-interface SpeechRecognitionInstance
-  extends EventTarget {
+interface SpeechRecognitionInstance extends EventTarget {
   lang: string;
   continuous: boolean;
   interimResults: boolean;
@@ -60,44 +64,20 @@ declare global {
   }
 }
 
-const TYPE_ICONS: Record<string, typeof Brain> = {
-  thinking: Brain,
-  plan: Cpu,
-  tool_call: Wrench,
-  tool_result: CheckCircle2,
-  complete: CheckCircle2,
-  insight: Lightbulb,
-  final: Sparkles,
-  error: CircleAlert,
-};
-
-const AGENT_COLORS: Record<string, string> = {
-  Orchestrator:
-    'border-primary/40 bg-primary/5 text-primary',
-  Scheduler:
-    'border-violet-300/40 bg-violet-300/5 text-violet-300',
-  TaskAgent:
-    'border-emerald-300/40 bg-emerald-300/5 text-emerald-300',
-  Scribe:
-    'border-pink-300/40 bg-pink-300/5 text-pink-300',
-  WeatherAgent:
-    'border-blue-300/40 bg-blue-300/5 text-blue-300',
-  ResearchAgent:
-    'border-yellow-300/40 bg-yellow-300/5 text-yellow-300',
-  RoutineAgent:
-    'border-rose-300/40 bg-rose-300/5 text-rose-300',
-  ScreenAgent:
-    'border-orange-300/40 bg-orange-300/5 text-orange-300',
-  Learner:
-    'border-yellow-200/40 bg-yellow-200/5 text-yellow-200',
-};
+const USER_ID = 'vishwas';
 
 const QUICK_PROMPTS = [
   {
     label: 'Calendar + weather',
     text:
-      'Check tomorrow weather in Bengaluru '
+      "Check tomorrow's weather in Bengaluru "
       + 'and show my calendar.',
+  },
+  {
+    label: 'Create event',
+    text:
+      'Create a calendar event tomorrow at '
+      + '3 PM for project planning.',
   },
   {
     label: 'Research',
@@ -108,19 +88,14 @@ const QUICK_PROMPTS = [
   {
     label: 'Tasks + message',
     text:
-      'Create a high priority task to send the Q4 deck '
-      + 'and draft a message to Marcus.',
+      'Create a high priority task to send '
+      + 'the Q4 deck and draft a message to Marcus.',
   },
   {
     label: 'Focus',
     text:
       'Activate focus mode for two hours '
       + 'for deep project work.',
-  },
-  {
-    label: 'Screen scan',
-    text:
-      'Check my WhatsApp for schedule updates.',
   },
   {
     label: 'Hinglish',
@@ -132,57 +107,162 @@ const QUICK_PROMPTS = [
 
 export default function Orchestrate() {
   const [input, setInput] = useState('');
-  const [trace, setTrace] = useState<TraceStep[]>(
-    [],
-  );
+  const [trace, setTrace] =
+    useState<TraceStep[]>([]);
+
   const [response, setResponse] =
     useState<OrchestrateResponse | null>(null);
-  const [planAgents, setPlanAgents] = useState<
-    string[]
-  >([]);
-  const [tokenCount, setTokenCount] = useState(0);
-  const [cached, setCached] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [listening, setListening] = useState(false);
-  const [error, setError] = useState<string | null>(
-    null,
-  );
+
+  const [conversation, setConversation] =
+    useState<ConversationMessage[]>([]);
+
+  const [currentRequest, setCurrentRequest] =
+    useState('');
+
+  const [planAgents, setPlanAgents] =
+    useState<string[]>([]);
+
+  const [tokenCount, setTokenCount] =
+    useState(0);
+
+  const [cached, setCached] =
+    useState(false);
+
+  const [demoMode, setDemoMode] =
+    useState(false);
+
+  const [voiceOutput, setVoiceOutput] =
+    useState(false);
+
+  const [loading, setLoading] =
+    useState(false);
+
+  const [
+    loadingConversation,
+    setLoadingConversation,
+  ] = useState(true);
+
+  const [listening, setListening] =
+    useState(false);
+
+  const [error, setError] =
+    useState<string | null>(null);
 
   const abortControllerRef =
     useRef<AbortController | null>(null);
+
   const recognitionRef =
-    useRef<SpeechRecognitionInstance | null>(null);
-  const traceEndRef = useRef<HTMLDivElement>(null);
+    useRef<SpeechRecognitionInstance | null>(
+      null,
+    );
+
+  const conversationEndRef =
+    useRef<HTMLDivElement | null>(null);
+
+  const inputRef =
+    useRef<HTMLTextAreaElement | null>(null);
+
+  const loadConversation = async () => {
+    setLoadingConversation(true);
+
+    try {
+      const result = await getConversation(
+        USER_ID,
+        5,
+      );
+
+      setConversation(result.messages);
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : 'Could not load conversation.',
+      );
+    } finally {
+      setLoadingConversation(false);
+    }
+  };
 
   useEffect(() => {
-    traceEndRef.current?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'nearest',
-    });
-  }, [trace]);
+    loadConversation();
 
-  useEffect(() => {
     const params = new URLSearchParams(
       window.location.search,
     );
 
-    if (params.get('calendar')) {
+    if (
+      params.has('google')
+      || params.has('calendar')
+    ) {
+      params.delete('google');
       params.delete('calendar');
 
       const query = params.toString();
-      const cleanedUrl =
-        window.location.pathname
-        + (query ? `?${query}` : '');
 
       window.history.replaceState(
         {},
         '',
-        cleanedUrl,
+        window.location.pathname
+          + (query ? `?${query}` : ''),
       );
     }
   }, []);
 
-  const handleVoice = () => {
+  useEffect(() => {
+    conversationEndRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+    });
+  }, [
+    conversation,
+    response,
+    trace.length,
+    currentRequest,
+  ]);
+
+  useEffect(() => {
+    if (!loading) {
+      inputRef.current?.focus();
+    }
+  }, [loading, response]);
+
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+      recognitionRef.current?.stop();
+      window.speechSynthesis?.cancel();
+    };
+  }, []);
+
+  const handleClearConversation = async () => {
+    if (loading) {
+      return;
+    }
+
+    try {
+      await clearConversation(USER_ID);
+
+      window.speechSynthesis?.cancel();
+
+      setConversation([]);
+      setCurrentRequest('');
+      setResponse(null);
+      setTrace([]);
+      setPlanAgents([]);
+      setTokenCount(0);
+      setCached(false);
+      setError(null);
+      setInput('');
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : 'Could not clear conversation.',
+      );
+    }
+  };
+
+  const handleVoiceInput = () => {
     const Recognition =
       window.SpeechRecognition
       || window.webkitSpeechRecognition;
@@ -199,17 +279,23 @@ export default function Orchestrate() {
       return;
     }
 
+    setError(null);
+
     const recognition = new Recognition();
+
     recognition.lang = 'en-IN';
     recognition.continuous = false;
     recognition.interimResults = false;
 
     recognition.onresult = (event) => {
-      setInput(event.results[0][0].transcript);
+      setInput(
+        event.results[0][0].transcript,
+      );
     };
 
     recognition.onerror = () => {
       setError('Voice recognition failed.');
+      setListening(false);
     };
 
     recognition.onend = () => {
@@ -219,6 +305,45 @@ export default function Orchestrate() {
     recognitionRef.current = recognition;
     recognition.start();
     setListening(true);
+  };
+
+  const speakResponse = (
+    message: string,
+  ) => {
+    if (
+      !voiceOutput
+      || !('speechSynthesis' in window)
+      || !message.trim()
+    ) {
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+
+    const utterance =
+      new SpeechSynthesisUtterance(
+        stripMarkdown(message),
+      );
+
+    utterance.lang = 'en-IN';
+    utterance.rate = 1;
+    utterance.pitch = 1;
+
+    window.speechSynthesis.speak(
+      utterance,
+    );
+  };
+
+  const toggleVoiceOutput = () => {
+    setVoiceOutput((current) => {
+      const next = !current;
+
+      if (!next) {
+        window.speechSynthesis?.cancel();
+      }
+
+      return next;
+    });
   };
 
   const stopStreaming = () => {
@@ -231,16 +356,22 @@ export default function Orchestrate() {
     overrideInput?: string,
   ) => {
     const requestText =
-      overrideInput ?? input;
+      (overrideInput ?? input).trim();
 
-    if (!requestText.trim() || loading) {
+    if (!requestText || loading) {
       return;
     }
 
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
+    const controller =
+      new AbortController();
 
-    setInput(requestText);
+    abortControllerRef.current =
+      controller;
+
+    window.speechSynthesis?.cancel();
+
+    setInput('');
+    setCurrentRequest(requestText);
     setTrace([]);
     setResponse(null);
     setPlanAgents([]);
@@ -253,43 +384,67 @@ export default function Orchestrate() {
       await streamOrchestration(
         requestText,
         {
-          onTrace: (step, tokens) => {
+          onTrace: (
+            step,
+            tokens,
+          ) => {
             setTrace((current) => [
               ...current,
               step,
             ]);
+
             setTokenCount(tokens);
           },
 
-          onPlan: (plan, step, tokens) => {
-            setPlanAgents(plan.agents_needed);
+          onPlan: (
+            plan,
+            step,
+            tokens,
+          ) => {
+            setPlanAgents(
+              plan.agents_needed,
+            );
+
             setTrace((current) => [
               ...current,
               step,
             ]);
+
             setTokenCount(tokens);
           },
 
-          onComplete: (result, tokens) => {
+          onComplete: (
+            result,
+            tokens,
+            wasCached,
+          ) => {
             setResponse(result);
             setTokenCount(tokens);
+
             setCached(
-              Boolean(
-                (
-                  result as OrchestrateResponse
-                  & { cached?: boolean }
-                ).cached,
-              ),
+              wasCached
+              || result.cached,
+            );
+
+            speakResponse(
+              result.final_message,
             );
           },
 
-          onError: (streamError) => {
-            setError(streamError.message);
+          onError: (
+            streamError,
+          ) => {
+            setError(
+              streamError.message,
+            );
           },
         },
-        'vishwas',
+        USER_ID,
         controller.signal,
+        demoMode,
       );
+
+      await loadConversation();
     } catch (caughtError) {
       if (
         caughtError instanceof DOMException
@@ -311,7 +466,7 @@ export default function Orchestrate() {
 
   const handleKeyDown = (
     event:
-      React.KeyboardEvent<HTMLTextAreaElement>,
+      KeyboardEvent<HTMLTextAreaElement>,
   ) => {
     if (
       event.key === 'Enter'
@@ -322,24 +477,25 @@ export default function Orchestrate() {
     }
   };
 
-  const toolOutputs =
-    response?.results.flatMap(
-      (agentResult) =>
-        agentResult.tool_results.map(
-          (toolResult) => ({
-            agent: agentResult.agent,
-            ...toolResult,
-          }),
-        ),
-    ) || [];
-
   const insight =
     response?.insight
     || [...trace]
       .reverse()
       .find(
-        (step) => step.type === 'insight',
-      )?.message;
+        (step) =>
+          step.type === 'insight',
+      )
+      ?.message;
+
+  const previousMessages =
+    response
+      ? conversation.slice(0, -2)
+      : conversation;
+
+  const hasConversation =
+    previousMessages.length > 0
+    || Boolean(currentRequest)
+    || Boolean(response);
 
   return (
     <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-5 py-8 pb-32 xl:grid-cols-12">
@@ -358,125 +514,112 @@ export default function Orchestrate() {
         <ConnectCalendar />
       </aside>
 
-      <main className="space-y-5 xl:col-span-7">
-        <section className="rounded-3xl border border-surface-high bg-surface-low p-6">
-          <div className="mb-5">
-            <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-primary">
-              Live Multi-Agent Workspace
-            </p>
+      <main className="min-w-0 space-y-5 xl:col-span-7">
+        <section className="rounded-3xl border border-surface-high bg-surface-low p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-primary">
+                Multi-Turn Chief of Staff
+              </p>
 
-            <h1 className="mt-2 text-2xl font-extrabold tracking-tight md:text-3xl">
-              What should Sutra handle?
-            </h1>
+              <h1 className="mt-2 text-2xl font-extrabold tracking-tight md:text-3xl">
+                Conversation with Sutra
+              </h1>
 
-            <p className="mt-2 text-sm leading-relaxed text-on-surface-variant">
-              Watch planning, agent dispatch, tool
-              execution, and results arrive in real time.
-            </p>
-          </div>
+              <p className="mt-2 text-sm text-on-surface-variant">
+                Sutra remembers your last five
+                turns and understands follow-ups.
+              </p>
+            </div>
 
-          <textarea
-            value={input}
-            onChange={(event) =>
-              setInput(event.target.value)
-            }
-            onKeyDown={handleKeyDown}
-            disabled={loading}
-            placeholder={
-              'Ask in English or Hinglish...'
-            }
-            rows={4}
-            className="w-full resize-none rounded-2xl border border-surface-high bg-surface-highest px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/50 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
-          />
-
-          <div className="mt-3 flex items-center justify-between gap-3">
             <button
               type="button"
-              onClick={handleVoice}
-              disabled={loading}
-              className={[
-                'flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition-colors',
-                listening
-                  ? 'border-red-400/50 bg-red-400/10 text-red-300'
-                  : 'border-surface-high text-on-surface-variant hover:border-primary/40 hover:text-primary',
-              ].join(' ')}
+              onClick={
+                handleClearConversation
+              }
+              disabled={
+                loading
+                || conversation.length === 0
+              }
+              className="flex flex-shrink-0 items-center gap-2 rounded-xl border border-surface-high px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant transition-colors hover:border-red-400/40 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-30"
             >
-              <Mic className="h-4 w-4" />
-              {listening
-                ? 'Listening...'
-                : 'Voice'}
+              <Trash2 className="h-3.5 w-3.5" />
+              Clear
             </button>
-
-            {loading ? (
-              <button
-                type="button"
-                onClick={stopStreaming}
-                className="flex items-center gap-2 rounded-xl border border-red-400/40 bg-red-400/10 px-5 py-2.5 text-sm font-bold text-red-300"
-              >
-                <Square className="h-4 w-4 fill-current" />
-                Stop
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => handleSubmit()}
-                disabled={!input.trim()}
-                className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-surface transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
-              >
-                Dispatch
-                <Send className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-
-          <div className="mt-5 border-t border-surface-high pt-4">
-            <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-              Try a workflow
-            </p>
-
-            <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-              {QUICK_PROMPTS.map((prompt) => (
-                <button
-                  key={prompt.label}
-                  type="button"
-                  disabled={loading}
-                  onClick={() =>
-                    handleSubmit(prompt.text)
-                  }
-                  className="rounded-xl border border-surface-high bg-surface-highest px-3 py-2 text-left text-[11px] text-on-surface-variant transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-40"
-                >
-                  {prompt.label}
-                </button>
-              ))}
-            </div>
           </div>
         </section>
 
-        {planAgents.length > 0 && (
-          <section className="rounded-2xl border border-primary/25 bg-primary/5 px-4 py-3">
-            <div className="flex items-center gap-2">
-              <Cpu className="h-4 w-4 text-primary" />
+        <section className="space-y-4">
+          {loadingConversation
+            && conversation.length === 0 && (
+            <p className="py-8 text-center text-xs text-on-surface-variant">
+              Loading conversation...
+            </p>
+          )}
 
-              <p className="text-xs text-on-surface">
-                <span className="font-bold text-primary">
-                  Plan:
-                </span>{' '}
-                {planAgents.join(' → ')}
-              </p>
-            </div>
-          </section>
-        )}
+          {!loadingConversation
+            && !hasConversation && (
+            <EmptyConversation
+              onPrompt={handleSubmit}
+              disabled={loading}
+            />
+          )}
 
-        {error && (
-          <section className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4">
-            <div className="flex gap-3">
-              <CircleAlert className="h-5 w-5 flex-shrink-0 text-red-300" />
-              <p className="text-sm text-red-200">
-                {error}
-              </p>
+          {previousMessages.map(
+            (message) => (
+              <ConversationBubble
+                key={message.id}
+                message={message}
+              />
+            ),
+          )}
+
+          {currentRequest && (
+            <div className="flex justify-end">
+              <div className="max-w-[85%] rounded-3xl rounded-br-lg bg-primary px-5 py-3 text-sm leading-relaxed text-surface">
+                {currentRequest}
+              </div>
             </div>
-          </section>
-        )}
+          )}
+
+          {planAgents.length > 0
+            && loading && (
+            <section className="rounded-2xl border border-primary/25 bg-primary/5 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <Cpu className="h-4 w-4 flex-shrink-0 text-primary" />
+
+                <p className="text-xs text-on-surface">
+                  <span className="font-bold text-primary">
+                    Working with:
+                  </span>{' '}
+
+                  {planAgents.join(', ')}
+                </p>
+              </div>
+            </section>
+          )}
+
+          {error && (
+            <section className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4">
+              <div className="flex gap-3">
+                <CircleAlert className="h-5 w-5 flex-shrink-0 text-red-300" />
+
+                <p className="text-sm text-red-200">
+                  {error}
+                </p>
+              </div>
+            </section>
+          )}
+
+          {response && (
+            <ChatResponse
+              response={response}
+              loading={loading}
+            />
+          )}
+
+          <div ref={conversationEndRef} />
+        </section>
 
         {insight && (
           <section className="rounded-3xl border border-yellow-300/30 bg-gradient-to-r from-yellow-300/10 to-transparent p-5">
@@ -498,126 +641,200 @@ export default function Orchestrate() {
           </section>
         )}
 
-        <section className="rounded-3xl border border-surface-high bg-surface-low p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">
-                Live Agent Trace
-              </p>
+        <CompactTrace
+          trace={trace}
+          loading={loading}
+        />
 
-              <p className="mt-1 text-xs text-on-surface-variant">
-                {trace.length} events received
-              </p>
+        <section className="sticky bottom-20 z-30 rounded-3xl border border-surface-high bg-surface/95 p-4 shadow-2xl backdrop-blur-xl">
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={(event) =>
+              setInput(event.target.value)
+            }
+            onKeyDown={handleKeyDown}
+            disabled={loading}
+            placeholder={
+              hasConversation
+                ? 'Ask a follow-up...'
+                : 'Ask in English or Hinglish...'
+            }
+            rows={2}
+            className="w-full resize-none rounded-2xl border border-surface-high bg-surface-highest px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/50 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
+          />
+
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleVoiceInput}
+                disabled={loading}
+                title="Voice input"
+                className={[
+                  'flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition-colors',
+                  listening
+                    ? 'border-red-400/50 bg-red-400/10 text-red-300'
+                    : 'border-surface-high text-on-surface-variant hover:border-primary/40 hover:text-primary',
+                ].join(' ')}
+              >
+                <Mic className="h-4 w-4" />
+
+                {listening
+                  ? 'Listening...'
+                  : 'Voice'}
+              </button>
+
+              <button
+                type="button"
+                onClick={toggleVoiceOutput}
+                title="Toggle spoken replies"
+                className={[
+                  'flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition-colors',
+                  voiceOutput
+                    ? 'border-primary/40 bg-primary/10 text-primary'
+                    : 'border-surface-high text-on-surface-variant hover:border-primary/40 hover:text-primary',
+                ].join(' ')}
+              >
+                {voiceOutput ? (
+                  <Volume2 className="h-4 w-4" />
+                ) : (
+                  <VolumeX className="h-4 w-4" />
+                )}
+
+                Speak
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setDemoMode(
+                    (current) =>
+                      !current,
+                  )
+                }
+                disabled={loading}
+                title="Use cached demo responses"
+                className={[
+                  'flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition-colors',
+                  demoMode
+                    ? 'border-yellow-300/40 bg-yellow-300/10 text-yellow-300'
+                    : 'border-surface-high text-on-surface-variant hover:border-yellow-300/40 hover:text-yellow-300',
+                ].join(' ')}
+              >
+                <Database className="h-4 w-4" />
+                Demo
+              </button>
             </div>
 
-            {loading && (
-              <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider text-primary">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
-                Streaming
-              </div>
+            {loading ? (
+              <button
+                type="button"
+                onClick={stopStreaming}
+                className="flex items-center gap-2 rounded-xl border border-red-400/40 bg-red-400/10 px-5 py-2.5 text-sm font-bold text-red-300"
+              >
+                <Square className="h-4 w-4 fill-current" />
+                Stop
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() =>
+                  handleSubmit()
+                }
+                disabled={!input.trim()}
+                className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-surface transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                Send
+                <Send className="h-4 w-4" />
+              </button>
             )}
           </div>
-
-          {trace.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-surface-high px-4 py-10 text-center">
-              <Brain className="mx-auto h-7 w-7 text-on-surface-variant/50" />
-
-              <p className="mt-3 text-sm text-on-surface-variant">
-                Dispatch a request to watch the
-                network work.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {trace.map((step, index) => {
-                const Icon =
-                  TYPE_ICONS[step.type] || Brain;
-
-                const color =
-                  AGENT_COLORS[step.agent]
-                  || 'border-surface-high bg-surface-highest text-on-surface-variant';
-
-                return (
-                  <article
-                    key={`${step.timestamp}-${index}`}
-                    className={`animate-fade-in rounded-2xl border p-4 ${color}`}
-                  >
-                    <div className="flex gap-3">
-                      <Icon className="mt-0.5 h-4 w-4 flex-shrink-0" />
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-xs font-bold">
-                            {step.agent}
-                          </span>
-
-                          <span className="font-mono text-[9px] uppercase tracking-wider opacity-60">
-                            {step.type}
-                          </span>
-                        </div>
-
-                        <p className="mt-1 text-sm leading-relaxed text-on-surface">
-                          {step.message}
-                        </p>
-
-                        {step.tool && (
-                          <div className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-black/15 px-2 py-1 font-mono text-[10px]">
-                            <Wrench className="h-3 w-3" />
-                            {step.tool}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
-
-              <div ref={traceEndRef} />
-            </div>
-          )}
         </section>
-
-        {toolOutputs.length > 0 && (
-          <section className="rounded-3xl border border-surface-high bg-surface-low p-5">
-            <p className="mb-4 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">
-              Tool Outputs
-            </p>
-
-            <div className="space-y-3">
-              {toolOutputs.map(
-                (output, index) => (
-                  <article
-                    key={`${output.tool}-${index}`}
-                    className="rounded-2xl border border-surface-high bg-surface-highest p-4"
-                  >
-                    <div className="mb-2 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        <Wrench className="h-3.5 w-3.5 text-primary" />
-
-                        <span className="font-mono text-[11px] text-primary">
-                          {output.tool}
-                        </span>
-                      </div>
-
-                      <span className="text-[9px] uppercase tracking-wider text-on-surface-variant">
-                        {output.agent}
-                      </span>
-                    </div>
-
-                    <pre className="overflow-x-auto whitespace-pre-wrap text-[11px] leading-relaxed text-on-surface-variant">
-                      {JSON.stringify(
-                        output.result,
-                        null,
-                        2,
-                      )}
-                    </pre>
-                  </article>
-                ),
-              )}
-            </div>
-          </section>
-        )}
       </main>
     </div>
   );
+}
+
+function EmptyConversation({
+  onPrompt,
+  disabled,
+}: {
+  onPrompt: (
+    prompt: string,
+  ) => void;
+  disabled: boolean;
+}) {
+  return (
+    <section className="rounded-3xl border border-dashed border-surface-high bg-surface-low/50 p-6">
+      <div className="text-center">
+        <h2 className="text-xl font-extrabold">
+          What should Sutra handle?
+        </h2>
+
+        <p className="mt-2 text-sm text-on-surface-variant">
+          Start a workflow or ask a question.
+        </p>
+      </div>
+
+      <div className="mt-5 grid grid-cols-2 gap-2 md:grid-cols-3">
+        {QUICK_PROMPTS.map(
+          (prompt) => (
+            <button
+              key={prompt.label}
+              type="button"
+              disabled={disabled}
+              onClick={() =>
+                onPrompt(prompt.text)
+              }
+              className="rounded-xl border border-surface-high bg-surface-highest px-3 py-2 text-left text-[11px] text-on-surface-variant transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-40"
+            >
+              {prompt.label}
+            </button>
+          ),
+        )}
+      </div>
+    </section>
+  );
+}
+
+function ConversationBubble({
+  message,
+}: {
+  message: ConversationMessage;
+}) {
+  if (message.role === 'user') {
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[85%] rounded-3xl rounded-br-lg bg-primary px-5 py-3 text-sm leading-relaxed text-surface">
+          {message.content}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex justify-start">
+      <div className="max-w-[90%] rounded-3xl rounded-bl-lg border border-surface-high bg-surface-low px-5 py-4">
+        <p className="mb-2 font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-primary">
+          Sutra
+        </p>
+
+        <p className="whitespace-pre-wrap text-sm leading-7 text-on-surface">
+          {stripMarkdown(
+            message.content,
+          )}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function stripMarkdown(
+  value: string,
+): string {
+  return value
+    .replace(/\*\*/g, '')
+    .replace(/^#+\s*/gm, '')
+    .trim();
 }

@@ -1,194 +1,562 @@
-import { useState, useEffect } from 'react';
-import { ScrollText, RefreshCw, Brain, Clock, AlertCircle, Activity } from 'lucide-react';
-import { getHistory, type HistoryEntry } from '../api';
+import {
+  Activity,
+  AlertCircle,
+  Brain,
+  CalendarDays,
+  CheckSquare,
+  Clock,
+  Focus,
+  Mail,
+  Monitor,
+  RefreshCw,
+  Search,
+  ScrollText,
+} from 'lucide-react';
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 
-const TYPE_COLORS: Record<string, string> = {
-  scheduler: 'text-secondary border-secondary/40 bg-secondary/5',
-  tasks: 'text-tertiary border-tertiary/40 bg-tertiary/5',
-  scribe: 'text-primary border-primary/40 bg-primary/5',
-  weather: 'text-blue-300 border-blue-300/40 bg-blue-300/5',
-  routine: 'text-pink-300 border-pink-300/40 bg-pink-300/5',
-  screen: 'text-orange-300 border-orange-300/40 bg-orange-300/5',
-  unknown: 'text-on-surface-variant border-on-surface-variant/20 bg-surface-low',
+import {
+  getHistory,
+  type HistoryEntry,
+} from '../api';
+
+const USER_ID = 'vishwas';
+
+const AGENT_STYLES:
+  Record<string, string> = {
+    scheduler:
+      'border-violet-300/30 bg-violet-300/5 text-violet-300',
+    tasks:
+      'border-emerald-300/30 bg-emerald-300/5 text-emerald-300',
+    scribe:
+      'border-pink-300/30 bg-pink-300/5 text-pink-300',
+    weather:
+      'border-blue-300/30 bg-blue-300/5 text-blue-300',
+    research:
+      'border-yellow-300/30 bg-yellow-300/5 text-yellow-300',
+    routine:
+      'border-rose-300/30 bg-rose-300/5 text-rose-300',
+    screen:
+      'border-orange-300/30 bg-orange-300/5 text-orange-300',
+    unknown:
+      'border-surface-high bg-surface-highest text-on-surface-variant',
+  };
+
+const AGENT_ICONS: Record<
+  string,
+  typeof Brain
+> = {
+  scheduler: CalendarDays,
+  tasks: CheckSquare,
+  scribe: Mail,
+  weather: Activity,
+  research: Search,
+  routine: Focus,
+  screen: Monitor,
+  unknown: Brain,
 };
 
-function formatTime(iso: string): string {
-  try {
-    const d = new Date(iso);
-    return d.toLocaleString('en-IN', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    });
-  } catch {
-    return iso;
-  }
-}
-
-function relativeTime(iso: string): string {
-  try {
-    const then = new Date(iso).getTime();
-    const now = Date.now();
-    const diff = Math.floor((now - then) / 1000);
-    if (diff < 60) return 'just now';
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return `${Math.floor(diff / 86400)}d ago`;
-  } catch {
-    return '';
-  }
-}
+const AGENT_LABELS:
+  Record<string, string> = {
+    scheduler: 'Scheduler',
+    tasks: 'TaskAgent',
+    scribe: 'Scribe',
+    weather: 'WeatherAgent',
+    research: 'ResearchAgent',
+    routine: 'RoutineAgent',
+    screen: 'ScreenAgent',
+    unknown: 'Unknown',
+  };
 
 export default function Logs() {
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [history, setHistory] =
+    useState<HistoryEntry[]>([]);
 
-  const load = async () => {
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState<string | null>(null);
+
+  const loadHistory = async () => {
     setLoading(true);
     setError(null);
+
     try {
-      const res = await getHistory('vishwas', 50);
-      setHistory(res.history);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load history');
+      const response = await getHistory(
+        USER_ID,
+        100,
+      );
+
+      setHistory(response.history);
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : 'Failed to load workflow history.',
+      );
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    load();
+    loadHistory();
   }, []);
 
-  // Stats
-  const totalRuns = history.length;
-  const byType = history.reduce((acc, h) => {
-    acc[h.request_type] = (acc[h.request_type] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-  const mostUsed = Object.entries(byType).sort((a, b) => b[1] - a[1])[0];
+  const agentCounts = useMemo(
+    () =>
+      history.reduce(
+        (
+          counts,
+          entry,
+        ) => {
+          const requestType =
+            normalizeType(
+              entry.request_type,
+            );
+
+          counts[requestType] =
+            (
+              counts[requestType]
+              || 0
+            ) + 1;
+
+          return counts;
+        },
+        {} as Record<string, number>,
+      ),
+    [history],
+  );
+
+  const sortedAgents = useMemo(
+    () =>
+      Object.entries(agentCounts)
+        .sort(
+          (
+            first,
+            second,
+          ) =>
+            second[1]
+            - first[1],
+        ),
+    [agentCounts],
+  );
+
+  const mostUsedAgent =
+    sortedAgents[0];
+
+  const uniqueAgents =
+    sortedAgents.length;
 
   return (
-    <div className="max-w-6xl mx-auto px-8 py-10 pb-32">
-      {/* Header */}
-      <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+    <div className="mx-auto max-w-6xl px-5 py-8 pb-32 md:px-8 md:py-10">
+      <header className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.2em] font-bold text-secondary mb-2">
+          <p className="mb-2 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-secondary">
             Execution History · Persistent
           </p>
-          <h2 className="font-extrabold text-3xl md:text-4xl tracking-tight">Agent Workflow Logs</h2>
-          <p className="text-on-surface-variant mt-2 text-sm">
-            Every request ever dispatched, persisted in SQLite and used by the Learner for pattern detection.
+
+          <h1 className="text-3xl font-extrabold tracking-tight md:text-4xl">
+            Agent Workflow Logs
+          </h1>
+
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-on-surface-variant">
+            Requests stored by Sutra for
+            workflow history, conversation
+            context, and Learner insights.
           </p>
         </div>
+
         <button
-          onClick={load}
-          className="flex items-center gap-2 bg-surface-low hover:bg-surface-high px-4 py-2 rounded-xl border border-surface-high text-[11px] font-mono uppercase tracking-wider transition-all"
+          type="button"
+          onClick={loadHistory}
+          disabled={loading}
+          className="flex items-center gap-2 rounded-xl border border-surface-high bg-surface-low px-4 py-2 font-mono text-[11px] uppercase tracking-wider transition-colors hover:bg-surface-high disabled:opacity-50"
         >
-          <RefreshCw className={`w-3.5 h-3.5 text-tertiary ${loading ? 'animate-spin' : ''}`} />
-          {loading ? 'Loading…' : 'Refresh'}
+          <RefreshCw
+            className={[
+              'h-3.5 w-3.5 text-tertiary',
+              loading
+                ? 'animate-spin'
+                : '',
+            ].join(' ')}
+          />
+
+          {loading
+            ? 'Loading...'
+            : 'Refresh'}
         </button>
-      </div>
+      </header>
 
       {error && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 text-red-300 text-sm mb-6 flex items-center gap-3">
-          <AlertCircle className="w-5 h-5 flex-shrink-0" />
+        <div className="mb-6 flex items-center gap-3 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+          <AlertCircle className="h-5 w-5 flex-shrink-0" />
           {error}
         </div>
       )}
 
-      {/* Stats row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div className="bg-surface-low p-5 rounded-2xl border border-surface-high">
-          <div className="flex items-center gap-2 mb-2">
-            <Activity className="w-4 h-4 text-primary" />
-            <span className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">
-              Total Runs
+      <section className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <StatCard
+          icon={Activity}
+          label="Total Runs"
+          value={String(
+            history.length,
+          )}
+          color="text-primary"
+        />
+
+        <StatCard
+          icon={Brain}
+          label="Most-used Agent"
+          value={
+            mostUsedAgent
+              ? (
+                  `${getAgentLabel(
+                    mostUsedAgent[0],
+                  )} (${mostUsedAgent[1]})`
+                )
+              : 'None yet'
+          }
+          color="text-secondary"
+        />
+
+        <StatCard
+          icon={Clock}
+          label="Last Activity"
+          value={
+            history[0]
+              ? relativeTime(
+                  history[0]
+                    .created_at,
+                )
+              : 'No activity'
+          }
+          color="text-tertiary"
+        />
+      </section>
+
+      {sortedAgents.length > 0 && (
+        <section className="mb-6 rounded-[2rem] border border-surface-high bg-surface-low p-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-extrabold">
+                Agent Distribution
+              </h2>
+
+              <p className="mt-1 text-[10px] text-on-surface-variant">
+                {uniqueAgents} agent categories used
+              </p>
+            </div>
+
+            <span className="font-mono text-[9px] uppercase tracking-wider text-on-surface-variant">
+              {history.length} observations
             </span>
           </div>
-          <div className="font-extrabold text-3xl text-primary">{totalRuns}</div>
-        </div>
 
-        <div className="bg-surface-low p-5 rounded-2xl border border-surface-high">
-          <div className="flex items-center gap-2 mb-2">
-            <Brain className="w-4 h-4 text-secondary" />
-            <span className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">
-              Most-used Agent
-            </span>
-          </div>
-          <div className="font-extrabold text-xl text-secondary capitalize">
-            {mostUsed ? `${mostUsed[0]} (${mostUsed[1]})` : '—'}
-          </div>
-        </div>
+          <div className="flex flex-wrap gap-2">
+            {sortedAgents.map(
+              ([agent, count]) => {
+                const Icon =
+                  getAgentIcon(agent);
 
-        <div className="bg-surface-low p-5 rounded-2xl border border-surface-high">
-          <div className="flex items-center gap-2 mb-2">
-            <Clock className="w-4 h-4 text-tertiary" />
-            <span className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">
-              Last Activity
-            </span>
-          </div>
-          <div className="font-extrabold text-lg text-tertiary">
-            {history[0] ? relativeTime(history[0].created_at) : '—'}
-          </div>
-        </div>
-      </div>
+                const style =
+                  getAgentStyle(agent);
 
-      {/* History timeline */}
-      <section className="bg-surface-low rounded-[2rem] p-6 border border-surface-high">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="font-extrabold text-lg">Workflow Stream</h3>
-          <span className="text-[10px] font-mono text-on-surface-variant">
-            showing {history.length} of {history.length}
+                return (
+                  <div
+                    key={agent}
+                    className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${style}`}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+
+                    <span className="text-[10px] font-bold">
+                      {getAgentLabel(
+                        agent,
+                      )}
+                    </span>
+
+                    <span className="rounded-full bg-black/15 px-1.5 py-0.5 font-mono text-[8px]">
+                      {count}
+                    </span>
+                  </div>
+                );
+              },
+            )}
+          </div>
+        </section>
+      )}
+
+      <section className="rounded-[2rem] border border-surface-high bg-surface-low p-5 md:p-6">
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-extrabold">
+              Workflow Stream
+            </h2>
+
+            <p className="mt-1 text-xs text-on-surface-variant">
+              Newest requests appear first
+            </p>
+          </div>
+
+          <span className="font-mono text-[10px] text-on-surface-variant">
+            {history.length} shown
           </span>
         </div>
 
-        {loading && history.length === 0 ? (
-          <div className="py-12 text-center text-on-surface-variant text-sm">Loading history…</div>
+        {loading
+          && history.length === 0 ? (
+          <EmptyState message="Loading workflow history..." />
         ) : history.length === 0 ? (
-          <div className="py-12 text-center text-on-surface-variant text-sm">
-            No workflows yet. Head to Orchestrate and dispatch a request.
-          </div>
+          <EmptyState message="No workflows yet. Start a conversation in Orchestrate." />
         ) : (
           <div className="space-y-2">
-            {history.map((entry) => {
-              const color = TYPE_COLORS[entry.request_type] || TYPE_COLORS.unknown;
-              return (
-                <div
+            {history.map(
+              (entry) => (
+                <HistoryCard
                   key={entry.id}
-                  className={`group p-4 rounded-2xl border transition-all ${color}`}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <ScrollText className="w-3.5 h-3.5 flex-shrink-0" />
-                        <span className="font-mono text-[9px] uppercase tracking-widest font-bold">
-                          {entry.request_type}
-                        </span>
-                        <span className="text-[9px] font-mono opacity-60">#{entry.id}</span>
-                      </div>
-                      <p className="text-sm text-on-surface leading-snug truncate">
-                        {entry.request_text}
-                      </p>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <div className="text-[10px] font-mono text-on-surface-variant">
-                        {formatTime(entry.created_at)}
-                      </div>
-                      <div className="text-[9px] text-on-surface-variant/60 mt-0.5">
-                        {relativeTime(entry.created_at)}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+                  entry={entry}
+                />
+              ),
+            )}
           </div>
         )}
       </section>
     </div>
+  );
+}
+
+function HistoryCard({
+  entry,
+}: {
+  entry: HistoryEntry;
+}) {
+  const requestType =
+    normalizeType(
+      entry.request_type,
+    );
+
+  const Icon =
+    getAgentIcon(requestType);
+
+  const style =
+    getAgentStyle(requestType);
+
+  return (
+    <article
+      className={`rounded-2xl border p-4 transition-transform hover:-translate-y-0.5 ${style}`}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 flex-1 gap-3">
+          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-black/10">
+            <Icon className="h-4 w-4" />
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-[9px] font-bold uppercase tracking-wider">
+                {getAgentLabel(
+                  requestType,
+                )}
+              </span>
+
+              <span className="font-mono text-[8px] opacity-50">
+                #{entry.id}
+              </span>
+            </div>
+
+            <p className="mt-1 text-sm leading-relaxed text-on-surface">
+              {entry.request_text}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex-shrink-0 text-right">
+          <p className="font-mono text-[9px] text-on-surface-variant">
+            {formatTime(
+              entry.created_at,
+            )}
+          </p>
+
+          <p className="mt-1 text-[9px] text-on-surface-variant/60">
+            {relativeTime(
+              entry.created_at,
+            )}
+          </p>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  color,
+}: {
+  icon: typeof Activity;
+  label: string;
+  value: string;
+  color: string;
+}) {
+  return (
+    <article className="rounded-2xl border border-surface-high bg-surface-low p-5">
+      <div className="mb-2 flex items-center gap-2">
+        <Icon
+          className={`h-4 w-4 ${color}`}
+        />
+
+        <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+          {label}
+        </span>
+      </div>
+
+      <p
+        className={`text-xl font-extrabold ${color}`}
+      >
+        {value}
+      </p>
+    </article>
+  );
+}
+
+function EmptyState({
+  message,
+}: {
+  message: string;
+}) {
+  return (
+    <div className="py-12 text-center">
+      <ScrollText className="mx-auto h-7 w-7 text-on-surface-variant/50" />
+
+      <p className="mt-3 text-sm text-on-surface-variant">
+        {message}
+      </p>
+    </div>
+  );
+}
+
+function normalizeType(
+  requestType: string,
+): string {
+  const normalized =
+    requestType
+      ?.trim()
+      .toLowerCase();
+
+  return normalized
+    || 'unknown';
+}
+
+function getAgentStyle(
+  agent: string,
+): string {
+  return (
+    AGENT_STYLES[agent]
+    || AGENT_STYLES.unknown
+  );
+}
+
+function getAgentIcon(
+  agent: string,
+): typeof Brain {
+  return (
+    AGENT_ICONS[agent]
+    || AGENT_ICONS.unknown
+  );
+}
+
+function getAgentLabel(
+  agent: string,
+): string {
+  return (
+    AGENT_LABELS[agent]
+    || agent
+    || AGENT_LABELS.unknown
+  );
+}
+
+function formatTime(
+  iso: string,
+): string {
+  const date = new Date(iso);
+
+  if (
+    Number.isNaN(
+      date.getTime(),
+    )
+  ) {
+    return iso;
+  }
+
+  return date.toLocaleString(
+    'en-IN',
+    {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    },
+  );
+}
+
+function relativeTime(
+  iso: string,
+): string {
+  const then =
+    new Date(iso).getTime();
+
+  if (
+    Number.isNaN(then)
+  ) {
+    return '';
+  }
+
+  const differenceSeconds =
+    Math.max(
+      0,
+      Math.floor(
+        (
+          Date.now()
+          - then
+        ) / 1000,
+      ),
+    );
+
+  if (
+    differenceSeconds < 60
+  ) {
+    return 'just now';
+  }
+
+  if (
+    differenceSeconds < 3600
+  ) {
+    return (
+      `${Math.floor(
+        differenceSeconds / 60,
+      )}m ago`
+    );
+  }
+
+  if (
+    differenceSeconds < 86400
+  ) {
+    return (
+      `${Math.floor(
+        differenceSeconds / 3600,
+      )}h ago`
+    );
+  }
+
+  return (
+    `${Math.floor(
+      differenceSeconds / 86400,
+    )}d ago`
   );
 }

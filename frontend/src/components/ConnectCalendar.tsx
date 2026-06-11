@@ -1,17 +1,22 @@
-import { useEffect, useState } from 'react';
 import {
   CalendarCheck,
   CalendarPlus,
   LoaderCircle,
   LogOut,
+  Mail,
+  RefreshCw,
   TriangleAlert,
 } from 'lucide-react';
+import {
+  useEffect,
+  useState,
+} from 'react';
 
 import {
-  disconnectCalendar,
-  getCalendarLoginUrl,
-  getCalendarStatus,
-  type CalendarConnectionStatus,
+  disconnectGoogle,
+  getGoogleLoginUrl,
+  getGoogleStatus,
+  type GoogleConnectionStatus,
 } from '../api';
 
 interface ConnectCalendarProps {
@@ -22,15 +27,20 @@ export default function ConnectCalendar({
   userId = 'vishwas',
 }: ConnectCalendarProps) {
   const [status, setStatus] =
-    useState<CalendarConnectionStatus | null>(null);
+    useState<GoogleConnectionStatus | null>(
+      null,
+    );
 
-  const [loading, setLoading] = useState(true);
-  const [disconnecting, setDisconnecting] =
-    useState(false);
+  const [loading, setLoading] =
+    useState(true);
 
-  const [error, setError] = useState<string | null>(
-    null,
-  );
+  const [
+    disconnecting,
+    setDisconnecting,
+  ] = useState(false);
+
+  const [error, setError] =
+    useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -40,7 +50,8 @@ export default function ConnectCalendar({
       setError(null);
 
       try {
-        const result = await getCalendarStatus(userId);
+        const result =
+          await getGoogleStatus(userId);
 
         if (mounted) {
           setStatus(result);
@@ -50,7 +61,10 @@ export default function ConnectCalendar({
           setError(
             caughtError instanceof Error
               ? caughtError.message
-              : 'Could not load Calendar status',
+              : (
+                  'Could not load Google '
+                  + 'connection status'
+                ),
           );
         }
       } finally {
@@ -68,7 +82,8 @@ export default function ConnectCalendar({
   }, [userId]);
 
   const handleConnect = () => {
-    window.location.href = getCalendarLoginUrl(userId);
+    window.location.href =
+      getGoogleLoginUrl(userId);
   };
 
   const handleDisconnect = async () => {
@@ -76,19 +91,26 @@ export default function ConnectCalendar({
     setError(null);
 
     try {
-      await disconnectCalendar(userId);
+      await disconnectGoogle(userId);
 
-      setStatus((current) => ({
-        provider:
-          current?.provider || 'google_calendar',
-        configured: current?.configured ?? true,
+      setStatus({
+        provider: 'google_workspace',
+        configured:
+          status?.configured ?? true,
         connected: false,
-      }));
+        calendar_connected: false,
+        gmail_connected: false,
+        requires_reconnect: false,
+        scopes: [],
+      });
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
           ? caughtError.message
-          : 'Could not disconnect Calendar',
+          : (
+              'Could not disconnect '
+              + 'Google Workspace'
+            ),
       );
     } finally {
       setDisconnecting(false);
@@ -100,7 +122,7 @@ export default function ConnectCalendar({
       <section className="rounded-3xl border border-surface-high bg-surface-low p-5">
         <div className="flex items-center gap-3 text-sm text-on-surface-variant">
           <LoaderCircle className="h-4 w-4 animate-spin text-primary" />
-          Checking Google Calendar connection...
+          Checking Google Workspace...
         </div>
       </section>
     );
@@ -114,8 +136,9 @@ export default function ConnectCalendar({
 
           <div>
             <p className="text-sm font-bold text-red-300">
-              Calendar status unavailable
+              Google connection unavailable
             </p>
+
             <p className="mt-1 text-xs text-red-200/80">
               {error}
             </p>
@@ -135,9 +158,11 @@ export default function ConnectCalendar({
             <p className="text-sm font-bold text-yellow-300">
               Google OAuth is not configured
             </p>
+
             <p className="mt-1 text-xs leading-relaxed text-on-surface-variant">
-              Add the Google client ID, client secret, and
-              redirect URI to the backend environment.
+              Add the Google client ID, client
+              secret, and redirect URI to the
+              backend environment.
             </p>
           </div>
         </div>
@@ -145,24 +170,72 @@ export default function ConnectCalendar({
     );
   }
 
-  if (status.connected) {
+  if (status.requires_reconnect) {
+    return (
+      <section className="rounded-3xl border border-yellow-300/30 bg-yellow-300/10 p-5">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-yellow-300/15">
+            <RefreshCw className="h-5 w-5 text-yellow-300" />
+          </div>
+
+          <div className="flex-1">
+            <p className="text-sm font-bold text-yellow-300">
+              Reconnect Google Workspace
+            </p>
+
+            <p className="mt-1 text-xs leading-relaxed text-on-surface-variant">
+              Calendar is connected, but Gmail
+              sending permission is missing.
+              Reconnect to approve both services.
+            </p>
+
+            <button
+              type="button"
+              onClick={handleConnect}
+              className="mt-4 flex items-center gap-2 rounded-xl bg-yellow-300 px-4 py-2.5 text-xs font-bold text-surface transition-opacity hover:opacity-90"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Reconnect Google
+            </button>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (
+    status.calendar_connected
+    || status.gmail_connected
+  ) {
     return (
       <section className="rounded-3xl border border-emerald-400/30 bg-emerald-400/10 p-5">
         <div className="flex items-start justify-between gap-4">
-          <div className="flex gap-3">
-            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-emerald-400/15">
-              <CalendarCheck className="h-5 w-5 text-emerald-300" />
-            </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-emerald-300">
+              Google Workspace connected
+            </p>
 
-            <div>
-              <p className="text-sm font-bold text-emerald-300">
-                Google Calendar connected
-              </p>
+            <p className="mt-1 text-xs leading-relaxed text-on-surface-variant">
+              Sutra can use the approved Google
+              services for this account.
+            </p>
 
-              <p className="mt-1 text-xs leading-relaxed text-on-surface-variant">
-                Scheduler reads and updates your primary
-                Google Calendar.
-              </p>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <ServiceStatus
+                icon={CalendarCheck}
+                label="Calendar"
+                connected={
+                  status.calendar_connected
+                }
+              />
+
+              <ServiceStatus
+                icon={Mail}
+                label="Gmail send"
+                connected={
+                  status.gmail_connected
+                }
+              />
             </div>
           </div>
 
@@ -170,7 +243,7 @@ export default function ConnectCalendar({
             type="button"
             onClick={handleDisconnect}
             disabled={disconnecting}
-            className="flex items-center gap-2 rounded-xl border border-surface-high px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant transition-colors hover:border-red-400/40 hover:text-red-300 disabled:opacity-50"
+            className="flex flex-shrink-0 items-center gap-2 rounded-xl border border-surface-high px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant transition-colors hover:border-red-400/40 hover:text-red-300 disabled:opacity-50"
           >
             {disconnecting ? (
               <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
@@ -194,12 +267,12 @@ export default function ConnectCalendar({
 
         <div className="flex-1">
           <p className="text-sm font-bold text-on-surface">
-            Connect Google Calendar
+            Connect Google Workspace
           </p>
 
           <p className="mt-1 text-xs leading-relaxed text-on-surface-variant">
-            Give Scheduler access to your real events.
-            Without it, Sutra uses local demonstration data.
+            Connect Calendar for real scheduling
+            and Gmail for confirmed email sending.
           </p>
 
           <button
@@ -208,10 +281,52 @@ export default function ConnectCalendar({
             className="mt-4 flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-surface transition-opacity hover:opacity-90"
           >
             <CalendarPlus className="h-4 w-4" />
-            Connect Google Calendar
+            Connect Google
           </button>
         </div>
       </div>
     </section>
+  );
+}
+
+function ServiceStatus({
+  icon: Icon,
+  label,
+  connected,
+}: {
+  icon: typeof CalendarCheck;
+  label: string;
+  connected: boolean;
+}) {
+  return (
+    <div className="rounded-xl border border-emerald-400/20 bg-black/10 px-3 py-2">
+      <div className="flex items-center gap-2">
+        <Icon
+          className={[
+            'h-3.5 w-3.5',
+            connected
+              ? 'text-emerald-300'
+              : 'text-on-surface-variant',
+          ].join(' ')}
+        />
+
+        <span className="text-[10px] font-bold text-on-surface">
+          {label}
+        </span>
+      </div>
+
+      <p
+        className={[
+          'mt-1 font-mono text-[8px] uppercase tracking-wider',
+          connected
+            ? 'text-emerald-300'
+            : 'text-yellow-300',
+        ].join(' ')}
+      >
+        {connected
+          ? 'Connected'
+          : 'Not approved'}
+      </p>
+    </div>
   );
 }

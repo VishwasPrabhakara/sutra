@@ -1,5 +1,6 @@
 const API_BASE =
-  import.meta.env.VITE_API_BASE || 'https://sutra-backend-381066349460.us-central1.run.app';
+  import.meta.env.VITE_API_BASE
+  || 'http://localhost:8000';
 
 export interface TraceStep {
   agent: string;
@@ -12,17 +13,20 @@ export interface TraceStep {
   agents?: string[];
 }
 
+export interface ToolResult {
+  tool: string;
+  result: unknown;
+}
+
 export interface AgentResult {
   agent: string;
   summary: string;
-  tool_results: Array<{
-    tool: string;
-    result: unknown;
-  }>;
+  tool_results: ToolResult[];
 }
 
 export interface OrchestrateResponse {
   user_request: string;
+  final_message: string;
   plan: {
     agents_needed: string[];
     [key: string]: unknown;
@@ -31,16 +35,28 @@ export interface OrchestrateResponse {
   trace: TraceStep[];
   insight: string | null;
   token_count: number;
+  cached: boolean;
+  demo_mode: boolean;
 }
 
 export interface StreamEvent {
-  event: 'trace' | 'plan' | 'complete' | 'error';
-  data: TraceStep | OrchestrateResponse | {
-    plan: OrchestrateResponse['plan'];
-    step: TraceStep;
-  } | {
-    message: string;
-  };
+  event:
+    | 'trace'
+    | 'plan'
+    | 'complete'
+    | 'error';
+
+  data:
+    | TraceStep
+    | OrchestrateResponse
+    | {
+        plan: OrchestrateResponse['plan'];
+        step: TraceStep;
+      }
+    | {
+        message: string;
+      };
+
   token_count?: number;
   cached?: boolean;
 }
@@ -60,9 +76,12 @@ export interface StreamCallbacks {
   onComplete?: (
     response: OrchestrateResponse,
     tokenCount: number,
+    cached: boolean,
   ) => void;
 
-  onError?: (error: Error) => void;
+  onError?: (
+    error: Error,
+  ) => void;
 }
 
 export interface CalendarEvent {
@@ -72,6 +91,9 @@ export interface CalendarEvent {
   start_time: string;
   end_time: string;
   created_at: string;
+  description?: string;
+  location?: string;
+  event_url?: string;
   source?: 'google' | 'local';
 }
 
@@ -92,6 +114,13 @@ export interface HistoryEntry {
   created_at: string;
 }
 
+export interface ConversationMessage {
+  id: number;
+  role: 'user' | 'assistant';
+  content: string;
+  created_at: string;
+}
+
 export interface PatternStat {
   request_type: string;
   count: number;
@@ -105,10 +134,51 @@ export interface InsightsResponse {
   pattern_count: number;
 }
 
-export interface CalendarConnectionStatus {
+export interface GoogleConnectionStatus {
   provider: string;
   configured: boolean;
   connected: boolean;
+  calendar_connected: boolean;
+  gmail_connected: boolean;
+  requires_reconnect: boolean;
+  scopes: string[];
+}
+
+/**
+ * Compatibility type used by ConnectCalendar.tsx.
+ */
+export type CalendarConnectionStatus =
+  GoogleConnectionStatus;
+
+export interface PendingEmail {
+  recipient: string;
+  subject: string;
+  body: string;
+  cc: string[];
+}
+
+export interface PendingAction {
+  id: number;
+  user_id: string;
+  action_type: string;
+  status: string;
+  created_at: string;
+  completed_at: string | null;
+  payload: PendingEmail;
+}
+
+export interface ConfirmActionResponse {
+  status: string;
+  action_id: number;
+  result: {
+    status: string;
+    message: string;
+    recipient?: string;
+    subject?: string;
+    message_id?: string;
+    thread_id?: string;
+    source?: string;
+  };
 }
 
 async function requireSuccess(
@@ -120,13 +190,18 @@ async function requireSuccess(
 
     try {
       const body = await response.json();
-      details = body.message || body.detail || details;
+
+      details =
+        body.message
+        || body.detail
+        || details;
     } catch {
       // Keep the HTTP status text.
     }
 
     throw new Error(
-      `${operation} failed: ${response.status} ${details}`,
+      `${operation} failed: `
+      + `${response.status} ${details}`,
     );
   }
 
@@ -136,19 +211,28 @@ async function requireSuccess(
 export async function orchestrate(
   request: string,
   userId = 'vishwas',
+  demoMode = false,
 ): Promise<OrchestrateResponse> {
-  const response = await fetch(`${API_BASE}/orchestrate`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+  const response = await fetch(
+    `${API_BASE}/orchestrate`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        request,
+        user_id: userId,
+        demo_mode: demoMode,
+      }),
     },
-    body: JSON.stringify({
-      request,
-      user_id: userId,
-    }),
-  });
+  );
 
-  await requireSuccess(response, 'Orchestration');
+  await requireSuccess(
+    response,
+    'Orchestration',
+  );
+
   return response.json();
 }
 
@@ -157,6 +241,7 @@ export async function streamOrchestration(
   callbacks: StreamCallbacks,
   userId = 'vishwas',
   signal?: AbortSignal,
+  demoMode = false,
 ): Promise<void> {
   try {
     const response = await fetch(
@@ -170,15 +255,22 @@ export async function streamOrchestration(
         body: JSON.stringify({
           request,
           user_id: userId,
+          demo_mode: demoMode,
         }),
         signal,
       },
     );
 
-    await requireSuccess(response, 'Streaming orchestration');
+    await requireSuccess(
+      response,
+      'Streaming orchestration',
+    );
 
     if (!response.body) {
-      throw new Error('The browser did not provide a response stream');
+      throw new Error(
+        'The browser did not provide '
+        + 'a response stream',
+      );
     }
 
     const reader = response.body.getReader();
@@ -186,26 +278,42 @@ export async function streamOrchestration(
     let buffer = '';
 
     while (true) {
-      const { value, done } = await reader.read();
+      const {
+        value,
+        done,
+      } = await reader.read();
 
       if (done) {
         break;
       }
 
-      buffer += decoder.decode(value, { stream: true });
+      buffer += decoder.decode(
+        value,
+        {
+          stream: true,
+        },
+      );
 
-      const eventBlocks = buffer.split(/\r?\n\r?\n/);
+      const eventBlocks =
+        buffer.split(/\r?\n\r?\n/);
+
       buffer = eventBlocks.pop() || '';
 
       for (const block of eventBlocks) {
-        processSseBlock(block, callbacks);
+        processSseBlock(
+          block,
+          callbacks,
+        );
       }
     }
 
     buffer += decoder.decode();
 
     if (buffer.trim()) {
-      processSseBlock(buffer, callbacks);
+      processSseBlock(
+        buffer,
+        callbacks,
+      );
     }
   } catch (error) {
     if (
@@ -218,9 +326,14 @@ export async function streamOrchestration(
     const normalizedError =
       error instanceof Error
         ? error
-        : new Error('Unknown streaming error');
+        : new Error(
+            'Unknown streaming error',
+          );
 
-    callbacks.onError?.(normalizedError);
+    callbacks.onError?.(
+      normalizedError,
+    );
+
     throw normalizedError;
   }
 }
@@ -232,13 +345,20 @@ function processSseBlock(
   let eventName = 'message';
   const dataLines: string[] = [];
 
-  for (const line of block.split(/\r?\n/)) {
+  for (
+    const line
+    of block.split(/\r?\n/)
+  ) {
     if (line.startsWith('event:')) {
-      eventName = line.slice(6).trim();
+      eventName = line
+        .slice(6)
+        .trim();
     }
 
     if (line.startsWith('data:')) {
-      dataLines.push(line.slice(5).trimStart());
+      dataLines.push(
+        line.slice(5).trimStart(),
+      );
     }
   }
 
@@ -250,27 +370,32 @@ function processSseBlock(
     dataLines.join('\n'),
   ) as StreamEvent;
 
-  const tokenCount = event.token_count || 0;
+  const tokenCount =
+    event.token_count || 0;
 
   if (eventName === 'trace') {
     callbacks.onTrace?.(
       event.data as TraceStep,
       tokenCount,
     );
+
     return;
   }
 
   if (eventName === 'plan') {
-    const planData = event.data as {
-      plan: OrchestrateResponse['plan'];
-      step: TraceStep;
-    };
+    const planData =
+      event.data as {
+        plan:
+          OrchestrateResponse['plan'];
+        step: TraceStep;
+      };
 
     callbacks.onPlan?.(
       planData.plan,
       planData.step,
       tokenCount,
     );
+
     return;
   }
 
@@ -278,17 +403,21 @@ function processSseBlock(
     callbacks.onComplete?.(
       event.data as OrchestrateResponse,
       tokenCount,
+      Boolean(event.cached),
     );
+
     return;
   }
 
   if (eventName === 'error') {
-    const errorData = event.data as {
-      message?: string;
-    };
+    const errorData =
+      event.data as {
+        message?: string;
+      };
 
     throw new Error(
-      errorData.message || 'Sutra stream failed',
+      errorData.message
+      || 'Sutra stream failed',
     );
   }
 }
@@ -302,10 +431,17 @@ export async function getEvents(
   source?: string;
 }> {
   const response = await fetch(
-    `${API_BASE}/api/events?user_id=${encodeURIComponent(userId)}`,
+    `${API_BASE}/api/events`
+    + `?user_id=${
+      encodeURIComponent(userId)
+    }`,
   );
 
-  await requireSuccess(response, 'Events request');
+  await requireSuccess(
+    response,
+    'Events request',
+  );
+
   return response.json();
 }
 
@@ -317,10 +453,17 @@ export async function getTasks(
   tasks: Task[];
 }> {
   const response = await fetch(
-    `${API_BASE}/api/tasks?user_id=${encodeURIComponent(userId)}`,
+    `${API_BASE}/api/tasks`
+    + `?user_id=${
+      encodeURIComponent(userId)
+    }`,
   );
 
-  await requireSuccess(response, 'Tasks request');
+  await requireSuccess(
+    response,
+    'Tasks request',
+  );
+
   return response.json();
 }
 
@@ -334,55 +477,214 @@ export async function getHistory(
 }> {
   const response = await fetch(
     `${API_BASE}/api/history`
-    + `?user_id=${encodeURIComponent(userId)}`
+    + `?user_id=${
+      encodeURIComponent(userId)
+    }`
     + `&limit=${limit}`,
   );
 
-  await requireSuccess(response, 'History request');
+  await requireSuccess(
+    response,
+    'History request',
+  );
+
   return response.json();
+}
+
+export async function getConversation(
+  userId = 'vishwas',
+  turns = 5,
+): Promise<{
+  status: string;
+  count: number;
+  messages: ConversationMessage[];
+}> {
+  const response = await fetch(
+    `${API_BASE}/api/conversation`
+    + `?user_id=${
+      encodeURIComponent(userId)
+    }`
+    + `&turns=${turns}`,
+  );
+
+  await requireSuccess(
+    response,
+    'Conversation request',
+  );
+
+  return response.json();
+}
+
+export async function clearConversation(
+  userId = 'vishwas',
+): Promise<void> {
+  const response = await fetch(
+    `${API_BASE}/api/conversation`
+    + `?user_id=${
+      encodeURIComponent(userId)
+    }`,
+    {
+      method: 'DELETE',
+    },
+  );
+
+  await requireSuccess(
+    response,
+    'Clear conversation',
+  );
 }
 
 export async function getInsights(
   userId = 'vishwas',
 ): Promise<InsightsResponse> {
   const response = await fetch(
-    `${API_BASE}/api/insights?user_id=${encodeURIComponent(userId)}`,
+    `${API_BASE}/api/insights`
+    + `?user_id=${
+      encodeURIComponent(userId)
+    }`,
   );
 
-  await requireSuccess(response, 'Insights request');
+  await requireSuccess(
+    response,
+    'Insights request',
+  );
+
   return response.json();
 }
 
-export async function getCalendarStatus(
+export async function getGoogleStatus(
   userId = 'vishwas',
-): Promise<CalendarConnectionStatus> {
+): Promise<GoogleConnectionStatus> {
   const response = await fetch(
-    `${API_BASE}/auth/status?user_id=${encodeURIComponent(userId)}`,
+    `${API_BASE}/auth/status`
+    + `?user_id=${
+      encodeURIComponent(userId)
+    }`,
   );
 
-  await requireSuccess(response, 'Calendar status request');
+  await requireSuccess(
+    response,
+    'Google status request',
+  );
+
   return response.json();
 }
 
-export function getCalendarLoginUrl(
+/**
+ * Compatibility alias for ConnectCalendar.tsx.
+ */
+export const getCalendarStatus =
+  getGoogleStatus;
+
+export function getGoogleLoginUrl(
   userId = 'vishwas',
 ): string {
   return (
     `${API_BASE}/auth/login`
-    + `?user_id=${encodeURIComponent(userId)}`
+    + `?user_id=${
+      encodeURIComponent(userId)
+    }`
   );
 }
 
-export async function disconnectCalendar(
+/**
+ * Compatibility alias for ConnectCalendar.tsx.
+ */
+export const getCalendarLoginUrl =
+  getGoogleLoginUrl;
+
+export async function disconnectGoogle(
   userId = 'vishwas',
 ): Promise<void> {
   const response = await fetch(
     `${API_BASE}/auth/disconnect`
-    + `?user_id=${encodeURIComponent(userId)}`,
+    + `?user_id=${
+      encodeURIComponent(userId)
+    }`,
     {
       method: 'POST',
     },
   );
 
-  await requireSuccess(response, 'Calendar disconnect');
+  await requireSuccess(
+    response,
+    'Google disconnect',
+  );
+}
+
+/**
+ * Compatibility alias for ConnectCalendar.tsx.
+ */
+export const disconnectCalendar =
+  disconnectGoogle;
+
+export async function getPendingAction(
+  actionId: number,
+  userId = 'vishwas',
+): Promise<PendingAction> {
+  const response = await fetch(
+    `${API_BASE}/api/actions/${actionId}`
+    + `?user_id=${
+      encodeURIComponent(userId)
+    }`,
+  );
+
+  await requireSuccess(
+    response,
+    'Pending action request',
+  );
+
+  const body = await response.json();
+
+  return body.action;
+}
+
+export async function confirmAction(
+  actionId: number,
+  userId = 'vishwas',
+): Promise<ConfirmActionResponse> {
+  const response = await fetch(
+    `${API_BASE}/api/actions/`
+    + `${actionId}/confirm`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        user_id: userId,
+      }),
+    },
+  );
+
+  await requireSuccess(
+    response,
+    'Action confirmation',
+  );
+
+  return response.json();
+}
+
+export async function cancelAction(
+  actionId: number,
+  userId = 'vishwas',
+): Promise<void> {
+  const response = await fetch(
+    `${API_BASE}/api/actions/`
+    + `${actionId}/cancel`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        user_id: userId,
+      }),
+    },
+  );
+
+  await requireSuccess(
+    response,
+    'Action cancellation',
+  );
 }
