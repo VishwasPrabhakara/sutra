@@ -21,7 +21,9 @@ import {
   type HistoryEntry,
 } from '../api';
 
-const USER_ID = 'vishwas';
+import { getUserId } from '../user';
+
+const USER_ID = getUserId();
 
 const AGENT_STYLES:
   Record<string, string> = {

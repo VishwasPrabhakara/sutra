@@ -64,7 +64,9 @@ declare global {
   }
 }
 
-const USER_ID = 'vishwas';
+import { getUserId } from '../user';
+
+const USER_ID = getUserId();
 
 const QUICK_PROMPTS = [
   {

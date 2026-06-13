@@ -1,6 +1,10 @@
 # 🧠 Sutra — Multi-Agent AI Chief of Staff
 
-> Sanskrit for *"thread."* Sutra threads together specialized AI agents, real-world tools, and persistent memory to handle messy multi-step requests — and shows you every decision in real time as it happens.
+[![Tests](https://github.com/VishwasPrabhakara/sutra/actions/workflows/tests.yml/badge.svg)](https://github.com/VishwasPrabhakara/sutra/actions/workflows/tests.yml)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-Cloud_Run-4285F4?logo=googlecloud&logoColor=white)](https://sutra-frontend-381066349460.us-central1.run.app)
+[![Python 3.11](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+
+> Sanskrit for *"thread."* Sutra combines specialized AI agents, real-world tools, and multi-turn memory to handle messy multi-step requests while streaming its execution trace in real time.
 
 <p align="center">
   <a href="https://sutra-frontend-381066349460.us-central1.run.app"><b>🌐 Live Demo</b></a> ·
@@ -16,13 +20,13 @@ Built for the **Google Cloud Gen AI Academy APAC Hackathon 2026**.
 
 ## What makes Sutra different
 
-Most multi-agent demos are black boxes — type a prompt, wait, see a response. Sutra is built so you can **watch every agent fire**, see the tools they call, and the data they return — **in real time** — while keeping a human in the loop for anything that touches the outside world.
+Most multi-agent demos are black boxes — type a prompt, wait, see a response. Sutra lets you **watch every agent fire**, see tool calls and results **in real time**, and keeps a human in the loop before outbound writes.
 
-Four things make this real, not a demo:
+Four engineering choices define the project:
 
-1. **True Server-Sent Events streaming** — every agent thought, tool call, and tool result is pushed to the UI as it happens. No fake `setTimeout` animations.
+1. **Server-Sent Events streaming** — agent lifecycle events, tool calls, and tool results are pushed to the UI as they happen.
 2. **Real working tools with OAuth** — Google Calendar read/create, Gmail send (after confirmation), Open-Meteo weather, DuckDuckGo search, Hacker News.
-3. **Human-in-the-loop confirmation** — anything that creates a calendar event or sends an email is *prepared*, not executed. The user sees a confirmation card and approves or cancels before the action fires.
+3. **Human-in-the-loop confirmation** — calendar creation, rescheduling, and email sending are *prepared*, not executed. The user approves or cancels before the action fires.
 4. **Multi-turn conversation memory** — Sutra remembers the last several exchanges per user, so follow-ups like *"reschedule that to tomorrow"* work without restating context.
 
 Try prompts like:
@@ -88,7 +92,7 @@ Hackathon projects often blur this. Sutra is explicit:
 | Hacker News top stories | ✅ Real (Firebase public API) |
 | Tasks + local calendar storage | ✅ Real (SQLite) |
 | Request history + Learner pattern detection | ✅ Real (SQLite) |
-| Demo prompt cache (Cloud Run cold start) | ✅ Real (pre-warm at startup) |
+| Optional demo response cache | ✅ Real (populated after a demo-mode request) |
 
 ---
 
@@ -100,9 +104,9 @@ Hackathon projects often blur this. Sutra is explicit:
 - **Multi-turn conversation memory** — follow-ups without restating context
 - **Live token-usage meter** — estimated cost per request
 - **Google Calendar + Gmail OAuth** — connect/disconnect from the sidebar
-- **Demo prompt cache** — instant response on cold start for showcased flows
+- **Optional demo response cache** — repeated demo-mode prompts can reuse a prior response
 - **Hinglish voice input** (en-IN) via Web Speech API
-- **Persistent memory** — tasks, calendar, history, learner patterns, OAuth tokens
+- **Instance-local memory** — tasks, calendar, history, learner patterns, and OAuth tokens in SQLite
 - **Compact agent trace** — one row per agent, click to expand sub-events
 - **Typed tool-result rendering** — calendar chips, weather cards, HN link lists; raw JSON hidden behind a toggle
 
@@ -128,7 +132,7 @@ Hackathon projects often blur this. Sutra is explicit:
 **Infrastructure**
 - **Google Cloud Run** — backend and frontend, serverless, auto-scaling
 - **Docker** — `python:3.11-slim` base for backend, nginx for frontend
-- **Cloud Build + Artifact Registry** — CI/CD
+- **GitHub Actions** — backend tests plus frontend lint and production build
 
 ---
 
@@ -171,10 +175,11 @@ pip install -r requirements.txt
 
 cat > .env << 'EOF'
 GEMINI_API_KEY=your_key_here
-GOOGLE_OAUTH_CLIENT_ID=your_oauth_client_id
-GOOGLE_OAUTH_CLIENT_SECRET=your_oauth_secret
-OAUTH_REDIRECT_URI=http://localhost:8000/auth/callback
-SESSION_SECRET=any_random_string
+GOOGLE_CLIENT_ID=your_oauth_client_id
+GOOGLE_CLIENT_SECRET=your_oauth_secret
+GOOGLE_REDIRECT_URI=http://localhost:8000/auth/callback
+FRONTEND_URL=http://localhost:5173
+ALLOWED_ORIGINS=http://localhost:5173
 EOF
 
 uvicorn main:app --reload --port 8000
@@ -195,6 +200,39 @@ Open `http://localhost:5173`.
 
 ---
 
+## ✅ Tests
+
+Backend tests cover SSE formatting and the prepare/confirm/cancel boundary for
+calendar actions. CI also lints and builds the React frontend.
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+
+cd frontend
+npm ci
+npm run lint
+npm run build
+```
+
+---
+
+## 🔐 Security and Limitations
+
+- The public demo uses an opaque per-browser ID for state separation; this is
+  not authentication.
+- OAuth tokens are stored in SQLite without application-level encryption.
+- Cloud Run local SQLite storage is ephemeral and instance-local, so it is not
+  suitable for durable or multi-instance user data.
+- Do not connect a sensitive personal or work Google account to a deployment
+  you do not control.
+- Production use would require authenticated sessions, encrypted managed
+  storage, shared OAuth state, endpoint authorization, and audit logging.
+
+See [SECURITY.md](SECURITY.md) for the full boundary.
+
+---
+
 ## 🐳 Deploy to Cloud Run
 
 ```bash
@@ -205,7 +243,7 @@ gcloud run deploy sutra-backend \
   --region us-central1 \
   --allow-unauthenticated \
   --memory 512Mi \
-  --set-env-vars GEMINI_API_KEY=...,GOOGLE_OAUTH_CLIENT_ID=...,GOOGLE_OAUTH_CLIENT_SECRET=...,OAUTH_REDIRECT_URI=https://sutra-backend-XXX.run.app/auth/callback,SESSION_SECRET=...
+  --set-env-vars GEMINI_API_KEY=...,GOOGLE_CLIENT_ID=...,GOOGLE_CLIENT_SECRET=...,GOOGLE_REDIRECT_URI=https://sutra-backend-XXX.run.app/auth/callback,FRONTEND_URL=https://sutra-frontend-XXX.run.app,ALLOWED_ORIGINS=https://sutra-frontend-XXX.run.app
 
 # Frontend (after backend URL is known)
 cd ../frontend
@@ -221,7 +259,7 @@ gcloud run deploy sutra-frontend --source . --region us-central1 --allow-unauthe
 ```
 sutra/
 ├── backend/
-│   ├── main.py              # FastAPI app + SSE endpoint + auth + action confirmation + cache pre-warming
+│   ├── main.py              # FastAPI app + SSE endpoint + auth + action confirmation
 │   ├── orchestrator.py      # Orchestrator + 5 tool-using sub-agents + Learner + conversation memory
 │   ├── tools.py             # Real tools: Open-Meteo, DuckDuckGo, Hacker News, Calendar, Gmail; SQLite for tasks
 │   ├── auth.py              # Google OAuth 2.0 flow (Calendar + Gmail scopes)
@@ -230,8 +268,9 @@ sutra/
 │   ├── db.py                # SQLite schema (sessions, oauth_tokens, calendar, tasks, history,
 │   │                        #               conversation_messages, prepared_actions, patterns)
 │   ├── requirements.txt
+│   ├── tests/
 │   ├── Dockerfile
-│   └── sutra.db
+│   └── sutra.db              # local runtime artifact; not committed
 ├── frontend/
 │   ├── src/
 │   │   ├── screens/         # Orchestrate · Schedule · Logs · Knowledge
@@ -243,6 +282,8 @@ sutra/
 │   ├── nginx.conf
 │   └── package.json
 ├── architecture.svg
+├── SECURITY.md
+├── requirements-dev.txt
 └── README.md
 ```
 
@@ -252,11 +293,11 @@ sutra/
 
 1. **User sends a query** via the React frontend (voice or text)
 2. **Frontend opens SSE stream** to `POST /orchestrate/stream`
-3. **Response cache** check — pre-warmed demo prompts return instantly
+3. **Response cache** check — repeated demo-mode prompts can reuse a prior response
 4. **Orchestrator** pulls the last few turns from `conversation_messages` and asks Gemini for a JSON plan: which sub-agents to dispatch and what each should do
 5. **Plan event** streams to the frontend → agents light up in the network graph
 6. **Each selected sub-agent** runs with its own system prompt and tool declarations
-7. **Gemini decides which tools to call** — each `thinking`, `tool_call`, and `tool_result` streams as it happens
+7. **Gemini decides which tools to call** — lifecycle, `tool_call`, and `tool_result` events stream as they happen
 8. **Tools execute** against real APIs (Open-Meteo, DuckDuckGo, Hacker News, Google Calendar) or SQLite (tasks) — or, for outbound actions (Gmail send, Calendar create), **stage a prepared action** instead of executing immediately
 9. **Frontend renders a confirmation card** for any prepared action; user clicks Confirm → `POST /api/actions/{id}/confirm` → Gmail/Calendar API fires for real
 10. **Learner** logs the request to `request_history` and surfaces a pattern-based insight if one is detected
@@ -278,7 +319,7 @@ The frontend renders the response as a chatbot bubble with typed cards per tool 
 
 Google Cloud Gen AI Academy APAC Edition Hackathon 2026
 
-**Built by:** [Vishwas Prabhakara](https://github.com/VishwasPrabhakara) — ML Engineer @ IISc Centre for Sustainable Technologies
+**Built by:** [Vishwas Prabhakara](https://github.com/VishwasPrabhakara) — Project Assistant (AIML), Indian Institute of Science
 
 [LinkedIn](https://www.linkedin.com/in/vishwas-prabhakara-2050821b6/) · vp14032001@gmail.com
 

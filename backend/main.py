@@ -40,6 +40,8 @@ from orchestrator import (
     orchestrate_events,
 )
 from tools import (
+    execute_create_event,
+    execute_reschedule_event,
     get_calendar_events,
     get_tasks,
 )
@@ -404,8 +406,10 @@ def confirm_action_endpoint(
     """
     Execute an action after explicit user confirmation.
 
-    Currently supported:
+    Supported actions:
     - send_email
+    - create_calendar_event
+    - reschedule_calendar_event
     """
     action = get_pending_action(
         action_id=action_id,
@@ -445,6 +449,16 @@ def confirm_action_endpoint(
                 subject=email["subject"],
                 body=email["body"],
                 cc=email.get("cc", []),
+            )
+        elif action["action_type"] == "create_calendar_event":
+            result = execute_create_event(
+                user_id=payload.user_id,
+                **action["payload"],
+            )
+        elif action["action_type"] == "reschedule_calendar_event":
+            result = execute_reschedule_event(
+                user_id=payload.user_id,
+                **action["payload"],
             )
         else:
             return JSONResponse(

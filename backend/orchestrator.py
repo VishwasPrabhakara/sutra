@@ -39,12 +39,12 @@ AGENT_CONFIG = {
                 "Use ISO 8601 timestamps with timezone offsets. "
                 "The user's timezone is Asia/Kolkata. "
                 "When the user explicitly asks to create, add, book, "
-                "or schedule an event, call create_event in the same turn. "
-                "Do not merely check availability and ask for confirmation. "
+                "or schedule an event, call create_event to prepare it "
+                "for user confirmation. "
                 "When the user asks to move an existing event, call "
-                "reschedule_event. "
-                "Never claim an event was created or rescheduled unless "
-                "the corresponding tool returned status success."
+                "reschedule_event to prepare the change. "
+                "Never claim an event was created or rescheduled while "
+                "the tool result says confirmation_required."
             ),
         "tools": [
             {
@@ -67,7 +67,7 @@ AGENT_CONFIG = {
             {
                 "name": "create_event",
                 "description": (
-                    "Create a calendar event."
+                    "Prepare a calendar event for user confirmation."
                 ),
                 "parameters": {
                     "type": "object",
@@ -113,7 +113,7 @@ AGENT_CONFIG = {
             {
                 "name": "reschedule_event",
                 "description": (
-                    "Move an existing event."
+                    "Prepare an event reschedule for user confirmation."
                 ),
                 "parameters": {
                     "type": "object",
@@ -910,6 +910,8 @@ Rules:
   drafts, or research when available.
 - If an email requires confirmation, clearly say it is
   prepared but has not been sent.
+- If a calendar action requires confirmation, clearly say it is
+  prepared but has not been applied.
 - Never claim an email was sent unless its result explicitly
   says status success and source gmail.
 - Keep the response under 180 words unless more detail is

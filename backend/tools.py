@@ -104,7 +104,45 @@ def create_event(
     timezone_name: str = "Asia/Kolkata",
     user_id: str = "vishwas",
 ) -> dict:
-    """Create an event in Google Calendar or local storage."""
+    """Stage a calendar event for explicit user confirmation."""
+    payload = {
+        "title": title,
+        "start_time": start_time,
+        "end_time": end_time,
+        "description": description,
+        "location": location,
+        "attendees": attendees or [],
+        "timezone_name": timezone_name,
+    }
+    action_id = create_pending_action(
+        user_id=user_id,
+        action_type="create_calendar_event",
+        payload=payload,
+    )
+    return {
+        "status": "confirmation_required",
+        "message": (
+            "The calendar event is ready. Review it and confirm "
+            "before Sutra creates it."
+        ),
+        "action_id": action_id,
+        "action_type": "create_calendar_event",
+        "requires_confirmation": True,
+        "event": payload,
+    }
+
+
+def execute_create_event(
+    title: str,
+    start_time: str,
+    end_time: str | None = None,
+    description: str = "",
+    location: str = "",
+    attendees: list[str] | None = None,
+    timezone_name: str = "Asia/Kolkata",
+    user_id: str = "vishwas",
+) -> dict:
+    """Create a confirmed event in Google Calendar or local storage."""
     if is_calendar_connected(user_id):
         try:
             return create_calendar_event(
@@ -195,7 +233,35 @@ def reschedule_event(
     new_start_time: str,
     user_id: str = "vishwas",
 ) -> dict:
-    """Reschedule a Google or local event."""
+    """Stage an event reschedule for explicit user confirmation."""
+    payload = {
+        "event_title": event_title,
+        "new_start_time": new_start_time,
+    }
+    action_id = create_pending_action(
+        user_id=user_id,
+        action_type="reschedule_calendar_event",
+        payload=payload,
+    )
+    return {
+        "status": "confirmation_required",
+        "message": (
+            "The calendar change is ready. Review it and confirm "
+            "before Sutra reschedules the event."
+        ),
+        "action_id": action_id,
+        "action_type": "reschedule_calendar_event",
+        "requires_confirmation": True,
+        "event": payload,
+    }
+
+
+def execute_reschedule_event(
+    event_title: str,
+    new_start_time: str,
+    user_id: str = "vishwas",
+) -> dict:
+    """Apply a confirmed Google or local calendar reschedule."""
     if is_calendar_connected(user_id):
         try:
             return reschedule_calendar_event(

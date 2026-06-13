@@ -24,7 +24,7 @@ interface ConnectCalendarProps {
 }
 
 export default function ConnectCalendar({
-  userId = 'vishwas',
+  userId = getUserId(),
 }: ConnectCalendarProps) {
   const [status, setStatus] =
     useState<GoogleConnectionStatus | null>(
@@ -330,3 +330,4 @@ function ServiceStatus({
     </div>
   );
 }
+import { getUserId } from '../user';

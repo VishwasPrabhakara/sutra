@@ -1,12 +1,18 @@
 """SQLite persistence for Sutra."""
 
 import json
+import os
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-DB_PATH = Path(__file__).resolve().parent / "sutra.db"
+DB_PATH = Path(
+    os.getenv(
+        "SUTRA_DB_PATH",
+        Path(__file__).resolve().parent / "sutra.db",
+    )
+)
 
 
 def get_conn() -> sqlite3.Connection:

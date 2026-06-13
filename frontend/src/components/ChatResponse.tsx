@@ -276,7 +276,18 @@ function ToolDetail({
     );
   }
 
-  if (output.tool === 'create_event') {
+  if (
+    output.tool === 'create_event'
+    || output.tool === 'reschedule_event'
+  ) {
+    if (output.result.requires_confirmation) {
+      return (
+        <CalendarConfirmation
+          result={output.result}
+        />
+      );
+    }
+
     return (
       <ActionDetail
         icon={CalendarDays}
@@ -302,6 +313,135 @@ function ToolDetail({
       title={formatToolName(output.tool)}
       result={output.result}
     />
+  );
+}
+
+function CalendarConfirmation({
+  result,
+}: {
+  result: Record<string, unknown>;
+}) {
+  const actionId = toNumber(result.action_id);
+  const event = asRecord(result.event);
+  const [state, setState] = useState<
+    'pending' | 'applying' | 'applied' | 'cancelled' | 'error'
+  >(result.requires_confirmation ? 'pending' : 'error');
+  const [message, setMessage] = useState(
+    toStringValue(result.message),
+  );
+
+  const handleConfirm = async () => {
+    if (!actionId) {
+      setState('error');
+      setMessage('The calendar confirmation ID is missing.');
+      return;
+    }
+
+    setState('applying');
+
+    try {
+      const confirmation = await confirmAction(actionId);
+      setState('applied');
+      setMessage(
+        confirmation.result.message
+        || 'Calendar action applied.',
+      );
+    } catch (error) {
+      setState('error');
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : 'Calendar update failed.',
+      );
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!actionId) {
+      setState('cancelled');
+      return;
+    }
+
+    try {
+      await cancelAction(actionId);
+      setState('cancelled');
+      setMessage('Calendar action was cancelled.');
+    } catch (error) {
+      setState('error');
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : 'Could not cancel the calendar action.',
+      );
+    }
+  };
+
+  return (
+    <DetailCard
+      icon={CalendarDays}
+      title="Calendar action awaiting confirmation"
+    >
+      <div className="space-y-3">
+        <div className="grid gap-2 text-xs">
+          <DetailRow
+            label="Event"
+            value={toStringValue(
+              event.title || event.event_title,
+            )}
+          />
+          <DetailRow
+            label="Time"
+            value={toStringValue(
+              event.start_time || event.new_start_time,
+            )}
+          />
+        </div>
+
+        {state === 'pending' && (
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleConfirm}
+              className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-surface transition-opacity hover:opacity-90"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Confirm calendar change
+            </button>
+            <button
+              type="button"
+              onClick={handleCancel}
+              className="flex items-center gap-2 rounded-xl border border-surface-high px-4 py-2 text-xs font-bold text-on-surface-variant hover:border-red-400/40 hover:text-red-300"
+            >
+              <X className="h-3.5 w-3.5" />
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {state === 'applying' && (
+          <p className="flex items-center gap-2 text-xs text-primary">
+            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+            Applying calendar change...
+          </p>
+        )}
+        {state === 'applied' && (
+          <p className="flex items-center gap-2 text-xs font-bold text-emerald-300">
+            <CheckCircle2 className="h-4 w-4" />
+            {message}
+          </p>
+        )}
+        {state === 'cancelled' && (
+          <p className="text-xs text-on-surface-variant">
+            {message}
+          </p>
+        )}
+        {state === 'error' && (
+          <p className="text-xs text-red-300">
+            {message}
+          </p>
+        )}
+      </div>
+    </DetailCard>
   );
 }
 

@@ -21,7 +21,9 @@ import {
   type Task,
 } from '../api';
 
-const USER_ID = 'vishwas';
+import { getUserId } from '../user';
+
+const USER_ID = getUserId();
 
 const PRIORITY_COLORS:
   Record<string, string> = {

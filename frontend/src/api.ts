@@ -210,7 +210,7 @@ async function requireSuccess(
 
 export async function orchestrate(
   request: string,
-  userId = 'vishwas',
+  userId = getUserId(),
   demoMode = false,
 ): Promise<OrchestrateResponse> {
   const response = await fetch(
@@ -239,7 +239,7 @@ export async function orchestrate(
 export async function streamOrchestration(
   request: string,
   callbacks: StreamCallbacks,
-  userId = 'vishwas',
+  userId = getUserId(),
   signal?: AbortSignal,
   demoMode = false,
 ): Promise<void> {
@@ -423,7 +423,7 @@ function processSseBlock(
 }
 
 export async function getEvents(
-  userId = 'vishwas',
+  userId = getUserId(),
 ): Promise<{
   status: string;
   count: number;
@@ -446,7 +446,7 @@ export async function getEvents(
 }
 
 export async function getTasks(
-  userId = 'vishwas',
+  userId = getUserId(),
 ): Promise<{
   status: string;
   count: number;
@@ -468,7 +468,7 @@ export async function getTasks(
 }
 
 export async function getHistory(
-  userId = 'vishwas',
+  userId = getUserId(),
   limit = 20,
 ): Promise<{
   status: string;
@@ -492,7 +492,7 @@ export async function getHistory(
 }
 
 export async function getConversation(
-  userId = 'vishwas',
+  userId = getUserId(),
   turns = 5,
 ): Promise<{
   status: string;
@@ -516,7 +516,7 @@ export async function getConversation(
 }
 
 export async function clearConversation(
-  userId = 'vishwas',
+  userId = getUserId(),
 ): Promise<void> {
   const response = await fetch(
     `${API_BASE}/api/conversation`
@@ -535,7 +535,7 @@ export async function clearConversation(
 }
 
 export async function getInsights(
-  userId = 'vishwas',
+  userId = getUserId(),
 ): Promise<InsightsResponse> {
   const response = await fetch(
     `${API_BASE}/api/insights`
@@ -553,7 +553,7 @@ export async function getInsights(
 }
 
 export async function getGoogleStatus(
-  userId = 'vishwas',
+  userId = getUserId(),
 ): Promise<GoogleConnectionStatus> {
   const response = await fetch(
     `${API_BASE}/auth/status`
@@ -577,7 +577,7 @@ export const getCalendarStatus =
   getGoogleStatus;
 
 export function getGoogleLoginUrl(
-  userId = 'vishwas',
+  userId = getUserId(),
 ): string {
   return (
     `${API_BASE}/auth/login`
@@ -594,7 +594,7 @@ export const getCalendarLoginUrl =
   getGoogleLoginUrl;
 
 export async function disconnectGoogle(
-  userId = 'vishwas',
+  userId = getUserId(),
 ): Promise<void> {
   const response = await fetch(
     `${API_BASE}/auth/disconnect`
@@ -620,7 +620,7 @@ export const disconnectCalendar =
 
 export async function getPendingAction(
   actionId: number,
-  userId = 'vishwas',
+  userId = getUserId(),
 ): Promise<PendingAction> {
   const response = await fetch(
     `${API_BASE}/api/actions/${actionId}`
@@ -641,7 +641,7 @@ export async function getPendingAction(
 
 export async function confirmAction(
   actionId: number,
-  userId = 'vishwas',
+  userId = getUserId(),
 ): Promise<ConfirmActionResponse> {
   const response = await fetch(
     `${API_BASE}/api/actions/`
@@ -667,7 +667,7 @@ export async function confirmAction(
 
 export async function cancelAction(
   actionId: number,
-  userId = 'vishwas',
+  userId = getUserId(),
 ): Promise<void> {
   const response = await fetch(
     `${API_BASE}/api/actions/`
@@ -688,3 +688,4 @@ export async function cancelAction(
     'Action cancellation',
   );
 }
+import { getUserId } from './user';
